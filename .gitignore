@@ -1,4 +1,5 @@
 rsort*
-result.rec
+result*
 split_text_*
+offset_*
 .DS_Store

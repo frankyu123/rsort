@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 #include <unistd.h>
 #include <sys/time.h>
 #include <sys/stat.h>
@@ -11,8 +12,8 @@
 #include "lib/mergesort.h"
 #include "lib/winner_tree.h"
 
-void initUserArgs(int, char **);
-int splitKFile(SortFormat **, int, int);
-void mergeKFile(int *);
+SortConfig *initSortConfig(int, char **);
+int splitKFile(SortData **, int, int, SortConfig *);
+void mergeKFile(int *, SortConfig *config);
 
 #endif

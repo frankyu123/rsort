@@ -3,33 +3,21 @@
 
 #include <stdbool.h>
 
-typedef struct SortFormat {
-    char *recordBegin;
-    char *keyBegin;
-} SortFormat;
+typedef struct SortData {
+    char *record;
+} SortData;
 
-//***************************************************************************
-// Sort Command
-// @Description : 
-// case -rb             : record begin
-// case -d              : split by delimiter
-// case -k              : sort by specific key column
-// case -n              : numerical comparison
-// case -r              : reverse order
-// case --chunk         : external chunk number
-// case -s              : file size limit (byte)
-//***************************************************************************
-
-typedef struct SortArgs {
+typedef struct SortConfig {
     char *beginTag;
-    char *endTag;
     char *keyTag;
+    bool isCutByDelim;
     bool numeric;
     bool reverse;
     int chunk;
-    size_t maxFileSize;
-} SortArgs;
+    int maxFileSize;
+    int thread;
+} SortConfig;
 
-extern int *mergeSort(SortFormat **, int **, int, SortArgs *);
+extern int *mergeSort(SortData **, int **, int, SortConfig *);
 
 #endif

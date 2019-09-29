@@ -12,71 +12,53 @@
 #include "pthread_barrier.h"
 #endif
 
-#define _THREAD_NUM 5
-
 typedef struct ThreadArgs {
     int low;
     int high;
 } ThreadArgs;
 
-static SortArgs *sortArgs;
+static SortConfig *config;
 static pthread_barrier_t pbt;
-static SortFormat *result;
+static SortData *result;
 static int *idx = NULL;
 
 static int qcmp(const void *a,const void *b)
 {
-    int leftIdx = *(int *) a;
-    int rightIdx = *(int *) b;
+    int leftIdx = *(int *) a, rightIdx = *(int *) b;
     char *leftPtr, *rightPtr;
-
-    if (sortArgs->keyTag == NULL) {
-        if (sortArgs->numeric) {
-            long leftNum = strtol(result[leftIdx].recordBegin, &leftPtr, 10);
-            long rightNum = strtol(result[rightIdx].recordBegin, &rightPtr, 10);
+    if (config->keyTag == NULL) {
+        if (config->numeric) {
+            long leftNum = strtol(result[leftIdx].record, &leftPtr, 10);
+            long rightNum = strtol(result[rightIdx].record, &rightPtr, 10);
             if (leftNum != rightNum) {
-                return (int) rightNum - leftNum; 
+                return (!config->reverse) ? (int) rightNum - leftNum : (int) leftNum - rightNum; 
             } else {
-                return (int) strcmp(leftPtr, rightPtr);
+                return (!config->reverse) ? (int) strcmp(leftPtr, rightPtr) : (int) strcmp(rightPtr, leftPtr);
             }
         } else {
-            return (int) strcmp(result[leftIdx].recordBegin, result[rightIdx].recordBegin);
+            return (!config->reverse) ? (int) strcmp(result[leftIdx].record, result[rightIdx].record) : (int) strcmp(result[rightIdx].record, result[leftIdx].record);
         }
     } else {
-         if (sortArgs->numeric) {
-            long leftNum, rightNum;
+        if (strstr(result[leftIdx].record, config->keyTag) == NULL) {
+            return (!config->reverse) ? 1 : -1;
+        } else if (strstr(result[rightIdx].record, config->keyTag) == NULL) {
+            return (!config->reverse) ? -1 : 1;
+        }
 
-            if (result[leftIdx].keyBegin != NULL) {
-                leftNum = strtol(result[leftIdx].keyBegin, &leftPtr, 10);
-            } else {
-                leftNum = strtol(result[leftIdx].recordBegin, &leftPtr, 10);
-            }
-
-            if (result[rightIdx].keyBegin != NULL) {
-                rightNum = strtol(result[rightIdx].keyBegin, &rightPtr, 10);
-            } else {
-                rightNum = strtol(result[rightIdx].recordBegin, &rightPtr, 10);
-            }
-
+         if (config->numeric) {
+            long leftNum = strtol(strstr(result[leftIdx].record, config->keyTag), &leftPtr, 10);
+            long rightNum = strtol(strstr(result[rightIdx].record, config->keyTag), &rightPtr, 10);
             if (leftNum != rightNum) {
-                return (int) rightNum - leftNum; 
+                return (!config->reverse) ? (int) rightNum - leftNum : (int) leftNum - rightNum; 
             } else {
-                return (int) strcmp(leftPtr, rightPtr);
+                return (!config->reverse) ? (int) strcmp(leftPtr, rightPtr) : (int) strcmp(rightPtr, leftPtr);
             }
         } else {
-            if (result[leftIdx].keyBegin != NULL) {
-                leftPtr = result[leftIdx].keyBegin;
+            if (!config->reverse) {
+                return (int) strcmp(strstr(result[leftIdx].record, config->keyTag), strstr(result[rightIdx].record, config->keyTag));
             } else {
-                leftPtr = result[leftIdx].recordBegin;
+                return (int) strcmp(strstr(result[rightIdx].record, config->keyTag), strstr(result[leftIdx].record, config->keyTag));
             }
-
-            if (result[rightIdx].keyBegin != NULL) {
-                rightPtr = result[rightIdx].keyBegin;
-            } else {
-                rightPtr = result[rightIdx].recordBegin;
-            }
-
-            return (int) strcmp(leftPtr, rightPtr);
         }
     }
 }
@@ -84,61 +66,42 @@ static int qcmp(const void *a,const void *b)
 static bool mcmp(int leftPos, int rightPos)
 {
     char *leftPtr, *rightPtr;
-
-    if (sortArgs->keyTag == NULL) {
-        if (sortArgs->numeric) {
-            long leftNum = strtol(result[idx[leftPos]].recordBegin, &leftPtr, 10);
-            long rightNum = strtol(result[idx[rightPos]].recordBegin, &rightPtr, 10);
+    if (config->keyTag == NULL) {
+        if (config->numeric) {
+            long leftNum = strtol(result[idx[leftPos]].record, &leftPtr, 10);
+            long rightNum = strtol(result[idx[rightPos]].record, &rightPtr, 10);
             if (leftNum > rightNum || (leftNum == rightNum && strcmp(leftPtr, rightPtr) < 0)) {
-                return true; 
+                return (!config->reverse) ? true : false; 
             } else {
-                return false;
+                return (!config->reverse) ? false : true;
             }
         } else {
-            if (strcmp(result[idx[leftPos]].recordBegin, result[idx[rightPos]].recordBegin) <= 0) {
-                return true;
+            if (strcmp(result[idx[leftPos]].record, result[idx[rightPos]].record) <= 0) {
+                return (!config->reverse) ? true : false;
             } else {
-                return false;
+                return (!config->reverse) ? false : true;
             }
         }
     } else {
-        if (sortArgs->numeric) {
-            long leftNum, rightNum;
+        if (strstr(result[idx[leftPos]].record, config->keyTag) == NULL) {
+            return (!config->reverse) ? true : false;
+        } else if (strstr(result[idx[rightPos]].record, config->keyTag) == NULL) {
+            return (!config->reverse) ? false : true;
+        }
 
-            if (result[idx[leftPos]].keyBegin != NULL) {
-                leftNum = strtol(result[idx[leftPos]].keyBegin, &leftPtr, 10);
-            } else {
-                leftNum = strtol(result[idx[leftPos]].recordBegin, &leftPtr, 10);
-            }
-
-            if (result[idx[rightPos]].keyBegin != NULL) {
-                rightNum = strtol(result[idx[rightPos]].keyBegin, &rightPtr, 10);
-            } else {
-                rightNum = strtol(result[idx[rightPos]].recordBegin, &rightPtr, 10);
-            }
-
+        if (config->numeric) {
+            long leftNum = strtol(strstr(result[idx[leftPos]].record, config->keyTag), &leftPtr, 10);
+            long rightNum = strtol(strstr(result[idx[rightPos]].record, config->keyTag), &rightPtr, 10);
             if (leftNum > rightNum || (leftNum == rightNum && strcmp(leftPtr, rightPtr) < 0)) {
-                return true; 
+                return (!config->reverse) ? true : false; 
             } else {
-                return false;
+                return (!config->reverse) ? false :true;
             }
         } else {
-            if (result[idx[leftPos]].keyBegin != NULL) {
-                leftPtr = result[idx[leftPos]].keyBegin;
+            if (strcmp(strstr(result[idx[leftPos]].record, config->keyTag), strstr(result[idx[rightPos]].record, config->keyTag)) <= 0) {
+                return (!config->reverse) ? true : false;
             } else {
-                leftPtr = result[idx[leftPos]].recordBegin;
-            }
-
-            if (result[idx[rightPos]].keyBegin != NULL) {
-                rightPtr = result[idx[rightPos]].keyBegin;
-            } else {
-                rightPtr = result[idx[rightPos]].recordBegin;
-            }
-
-            if (strcmp(leftPtr, rightPtr) <= 0) {
-                return true;
-            } else {
-                return false;
+                return (!config->reverse) ? false : true;
             }
         }
     }
@@ -183,30 +146,29 @@ static void merge(int low, int mid, int high)
     free(tmp);
 }
 
-int *mergeSort(SortFormat **data, int **originIdx, int size, SortArgs *cmd)
+int *mergeSort(SortData **data, int **originIdx, int size, SortConfig *conf)
 {
-    sortArgs = cmd;
+    config = conf;
     result = *data;
     idx = (*originIdx);
 
     pthread_t tid;
-    pthread_barrier_init(&pbt, NULL, _THREAD_NUM);
+    pthread_barrier_init(&pbt, NULL, config->thread);
 
     // Partition qsort
-    for (int i = 0; i < _THREAD_NUM - 1; i++) {
+    for (int i = 0; i < config->thread - 1; i++) {
         ThreadArgs *args = (ThreadArgs *) malloc(sizeof(ThreadArgs));
-        args->low = i * (size - 1) / (_THREAD_NUM - 1);
+        args->low = i * (size - 1) / (config->thread - 1);
         if (i != 0) {
             args->low += 1;
         }
-        args->high = (i + 1) * (size - 1) / (_THREAD_NUM - 1);
+        args->high = (i + 1) * (size - 1) / (config->thread - 1);
         pthread_create(&tid, NULL, thread, args);
     }
-    
     pthread_barrier_wait(&pbt);
 
     // Merge
-    for (int i = (_THREAD_NUM - 1) / 2; i > 0; i /= 2) {
+    for (int i = (config->thread - 1) / 2; i > 0; i /= 2) {
         for (int j = 0; j < i; j++) {
             int low, mid, high;
             low = j * (size - 1) / i;

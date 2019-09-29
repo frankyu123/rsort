@@ -6,180 +6,81 @@
 #include "winner_tree.h"
 
 #define _DEFAULT_BUFFER_SIZE 1024
+#define _WINNER_TREE_SPLIT_FILE "split_text_"
+#define _WINNER_TREE_OFFSET_FILE "offset_"
+#define _WINNER_TREE_RESULT_FILE "result.rec"
 
 typedef struct WinnerTreeNode {
-    SortFormat *value;
+    SortData *value;
     int chunkIdx;
     int fileIdx;
 } WinnerTreeNode;
 
 // File variables
 static FILE **fin;
+static FILE **fmap;
 static FILE *fout;
 static int *fileNum;
 static int currentFileIdx = 0;
 
-// Record variables
-static char **recordTmp;
-static int *recordMaxBufferSize;
-static size_t fixBufferSize = 0;
-static bool fixBufferMode = true;
-
 // Tree variables
-static SortArgs *treeArgs;
+static SortConfig *config;
 static int *nodeList;
 static WinnerTreeNode *nodeValue;
 
-static SortFormat *getSortData(int fileIdx)
+static SortData *getSortData(int fileIdx)
 {
-    SortFormat *sortData = (SortFormat *) malloc(sizeof(SortFormat));
-    sortData->keyBegin = NULL;
-
-    char inputBuffer[_DEFAULT_BUFFER_SIZE];
-    char *tmp = malloc(strlen(recordTmp[fileIdx]) + _DEFAULT_BUFFER_SIZE);
-    strcpy(tmp, recordTmp[fileIdx]);
-    size_t maxInputBufferSize = strlen(recordTmp[fileIdx]) + _DEFAULT_BUFFER_SIZE;
-    bool findRecord = false;
-
-    size_t readBuffer;
-    if (fixBufferMode) {
-        readBuffer = fixBufferSize;
+    SortData *data = malloc(sizeof(SortData));
+    int size;
+    if (fscanf(fmap[fileIdx], "%d\n", &size) != EOF) {
+        data->record = (char *) malloc(size + 2);
+        memset(data->record, '\0', size + 2);
+        fread(data->record, size, sizeof(char), fin[fileIdx]);
+        return data;
     } else {
-        readBuffer = _DEFAULT_BUFFER_SIZE;
+        return NULL;
     }
-    
-    while (fgets(inputBuffer, readBuffer, fin[fileIdx]) != NULL) {
-        if (treeArgs->beginTag != NULL) {
-            if (strcmp(recordTmp[fileIdx], "\0") == 0 && strstr(inputBuffer, treeArgs->beginTag) && !findRecord) {
-                if (maxInputBufferSize <= strlen(tmp) + strlen(inputBuffer)) {
-                    tmp = (char *) realloc(tmp, strlen(tmp) + strlen(inputBuffer) + _DEFAULT_BUFFER_SIZE);
-                    maxInputBufferSize = strlen(tmp) + strlen(inputBuffer) + _DEFAULT_BUFFER_SIZE;
-                }
-                strcat(tmp, inputBuffer);
-                findRecord = true;
-            } else if (strstr(inputBuffer, treeArgs->beginTag) && findRecord) {
-                if (recordMaxBufferSize[fileIdx] <= strlen(recordTmp[fileIdx]) + strlen(inputBuffer)) {
-                    recordTmp[fileIdx] = (char *) realloc(recordTmp[fileIdx], strlen(recordTmp[fileIdx]) + strlen(inputBuffer) + _DEFAULT_BUFFER_SIZE);
-                    recordMaxBufferSize[fileIdx] = strlen(recordTmp[fileIdx]) + strlen(inputBuffer) + _DEFAULT_BUFFER_SIZE;
-                }
-                strcpy(recordTmp[fileIdx], inputBuffer);
-                break;
-            } else {
-                if (strcmp(recordTmp[fileIdx], "\0") != 0) {
-                    findRecord = true;
-                }
-
-                if (maxInputBufferSize <= strlen(tmp) + strlen(inputBuffer)) {
-                    tmp = (char *) realloc(tmp, strlen(tmp) + strlen(inputBuffer) + _DEFAULT_BUFFER_SIZE);
-                    maxInputBufferSize = strlen(tmp) + strlen(inputBuffer) + _DEFAULT_BUFFER_SIZE;
-                }
-
-                strcat(tmp, inputBuffer);
-            }
-        } else {
-            if (maxInputBufferSize <= strlen(tmp) + strlen(inputBuffer)) {
-                tmp = (char *) realloc(tmp, strlen(tmp) + strlen(inputBuffer) + _DEFAULT_BUFFER_SIZE);
-                maxInputBufferSize = strlen(tmp) + strlen(inputBuffer) + _DEFAULT_BUFFER_SIZE;
-            }
-
-            strcat(tmp, inputBuffer);
-
-            if (tmp[strlen(tmp)-1] == '\n') {
-                findRecord = true;
-                break;
-            }
-        }
-    }
-
-    if (strlen(tmp) != 0 && fixBufferMode) {
-        fseek(fin[fileIdx], fixBufferSize - strlen(tmp), SEEK_CUR);
-    }
-
-    if (!findRecord) {
-        if (strcmp(tmp, recordTmp[fileIdx]) == 0) {
-            strcpy(tmp, "\0");
-        }
-        free(recordTmp[fileIdx]);
-        recordTmp[fileIdx] = (char *) malloc(_DEFAULT_BUFFER_SIZE);
-        strcpy(recordTmp[fileIdx], "\0");
-        recordMaxBufferSize[fileIdx] = _DEFAULT_BUFFER_SIZE;
-    }
-
-    if (treeArgs->keyTag != NULL) {
-        char *keyPtr = strstr(tmp, treeArgs->keyTag);
-        if (keyPtr != NULL) {
-            sortData->keyBegin = (char *) malloc(strlen(keyPtr) + 1);
-            strcpy(sortData->keyBegin, keyPtr + strlen(treeArgs->keyTag));
-        } else {
-            sortData->keyBegin = (char *) malloc(sizeof(char));
-            strcpy(sortData->keyBegin, "\0");
-        }
-    }
-
-    sortData->recordBegin = (char *) malloc(strlen(tmp) + 1);
-    strcpy(sortData->recordBegin, tmp);
-
-    free(tmp);
-    return sortData;
 }
 
-static bool nodeCmp(SortFormat *left, SortFormat *right) 
+static bool nodeCmp(SortData *left, SortData *right) 
 {
     char *leftPtr, *rightPtr;
-    if (treeArgs->keyTag == NULL) {
-        if (treeArgs->numeric) {
-            long leftNum = strtol(left->recordBegin, &leftPtr, 10);
-            long rightNum = strtol(right->recordBegin, &rightPtr, 10);
+    if (config->keyTag == NULL) {
+        if (config->numeric) {
+            long leftNum = strtol(left->record, &leftPtr, 10);
+            long rightNum = strtol(right->record, &rightPtr, 10);
             if (leftNum > rightNum || (leftNum == rightNum && strcmp(leftPtr, rightPtr) < 0)) {
-                return true; 
+                return (!config->reverse) ? true : false; 
             } else {
-                return false;
+                return (!config->reverse) ? false : true;
             }
         } else {
-            if (strcmp(left->recordBegin, right->recordBegin) <= 0) {
-                return true;
+            if (strcmp(left->record, right->record) <= 0) {
+                return (!config->reverse) ? true : false;
             } else {
-                return false;
+                return (!config->reverse) ? false : true;
             }
         }
     } else {
-        if (treeArgs->numeric) {
-            long leftNum, rightNum;
+        if (strstr(left->record, config->keyTag) == NULL) {
+            return (!config->reverse) ? true : false;
+        } else if (strstr(right->record, config->keyTag) == NULL) {
+            return (!config->reverse) ? false : true;
+        }
 
-            if (left->keyBegin != NULL) {
-                leftNum = strtol(left->keyBegin, &leftPtr, 10);
-            } else {
-                leftNum = strtol(left->recordBegin, &leftPtr, 10);
-            }
-
-            if (right->keyBegin != NULL) {
-                rightNum = strtol(right->keyBegin, &rightPtr, 10);
-            } else {
-                rightNum = strtol(right->recordBegin, &rightPtr, 10);
-            }
-
+        if (config->numeric) {
+            long leftNum = strtol(strstr(left->record, config->keyTag), &leftPtr, 10);
+            long rightNum = strtol(strstr(right->record, config->keyTag), &rightPtr, 10);
             if (leftNum > rightNum || (leftNum == rightNum && strcmp(leftPtr, rightPtr) < 0)) {
-                return true; 
+                return (!config->reverse) ? true : false; 
             } else {
-                return false;
+                return (!config->reverse) ? false : true;
             }
         } else {
-            if (left->keyBegin != NULL) {
-                leftPtr = left->keyBegin;
+            if (strcmp(strstr(left->record, config->keyTag), strstr(right->record, config->keyTag)) <= 0) {
+                return (!config->reverse) ? true : false;
             } else {
-                leftPtr = left->recordBegin;
-            }
-
-            if (right->keyBegin != NULL) {
-                rightPtr = right->keyBegin;
-            } else {
-                rightPtr = right->recordBegin;
-            }
-
-            if (strcmp(leftPtr, rightPtr) <= 0) {
-                return true;
-            } else {
-                return false;
+                return (!config->reverse) ? false : true;
             }
         }
     }
@@ -196,11 +97,11 @@ static void winnerTreeInsert(int nodeIdx, int totalNode)
     winnerTreeInsert(leftIdx, totalNode);
     winnerTreeInsert(rightIdx, totalNode);
 
-    if (leftIdx >= totalNode && rightIdx >= totalNode && currentFileIdx < treeArgs->chunk) {
+    if (leftIdx >= totalNode && rightIdx >= totalNode && currentFileIdx < config->chunk) {
         nodeList[nodeIdx] = currentFileIdx;
         nodeValue[currentFileIdx].value = getSortData(currentFileIdx);
         ++currentFileIdx;
-    } else if (leftIdx >= totalNode && rightIdx >= totalNode && currentFileIdx >= treeArgs->chunk) {
+    } else if (leftIdx >= totalNode && rightIdx >= totalNode && currentFileIdx >= config->chunk) {
         nodeList[nodeIdx] = -1;
     } else {
 		if (nodeList[leftIdx] == -1 && nodeList[rightIdx] == -1) {
@@ -219,34 +120,24 @@ static void winnerTreeInsert(int nodeIdx, int totalNode)
     }
 }
 
-void initWinnerTree(SortArgs *userArgs, int *fileInfo, size_t bufferSize, bool openFixBufferMode)
+void initWinnerTree(SortConfig *conf, int *fileInfo)
 {   
-    // Initialize global variables
-    treeArgs = userArgs;
+    config = conf;
     fileNum = fileInfo;
-    fixBufferSize = bufferSize;
-    fixBufferMode = openFixBufferMode;
 
-    recordTmp = (char **) malloc((treeArgs->chunk + 1) * sizeof(char *));
-    for (int i = 0; i < treeArgs->chunk; i++) {
-        recordTmp[i] = (char *) malloc(_DEFAULT_BUFFER_SIZE * sizeof(char));
-        strcpy(recordTmp[i], "\0");
+    fin = (FILE **) malloc((config->chunk + 1) * sizeof(FILE *));
+    fmap = (FILE **) malloc((config->chunk + 1) * sizeof(FILE *));
+    char splitFile[31], offsetFile[31]; 
+    for (int i = 1; i <= config->chunk; i++) {
+        sprintf(splitFile, "%s%d_%d.rec", _WINNER_TREE_SPLIT_FILE, i, 1);
+        sprintf(offsetFile, "%s%d_%d.rec", _WINNER_TREE_OFFSET_FILE, i, 1);
+        fin[i-1] = fopen(splitFile, "r");
+        fmap[i-1] = fopen(offsetFile, "r");
     }
-
-    recordMaxBufferSize = (int *) malloc((treeArgs->chunk + 1) * sizeof(int));
-    memset(recordMaxBufferSize, _DEFAULT_BUFFER_SIZE, (treeArgs->chunk + 1) * sizeof(int));
-
-    fin = (FILE **) malloc((treeArgs->chunk + 1) * sizeof(FILE *));
-    char filename[31]; 
-    for (int i = 1; i <= treeArgs->chunk; i++) {
-        sprintf(filename, "%s%d_%d.rec", _WINNER_TREE_SPLIT_FILE, i, 1);
-        fin[i-1] = fopen(filename, "r");
-    }
-
     fout = fopen(_WINNER_TREE_RESULT_FILE, "w");
 
     int nodeNum = 1;
-    while (nodeNum < treeArgs->chunk) {
+    while (nodeNum < config->chunk) {
         nodeNum <<= 1;
     }
 
@@ -255,8 +146,8 @@ void initWinnerTree(SortArgs *userArgs, int *fileInfo, size_t bufferSize, bool o
         nodeList[i] = -1;
     }
 
-    nodeValue = (WinnerTreeNode *) malloc(treeArgs->chunk * sizeof(WinnerTreeNode));
-    for (int i = 0; i < treeArgs->chunk; i++) {
+    nodeValue = (WinnerTreeNode *) malloc(config->chunk * sizeof(WinnerTreeNode));
+    for (int i = 0; i < config->chunk; i++) {
         nodeValue[i].chunkIdx = i + 1;
         nodeValue[i].fileIdx = 1;
     }
@@ -269,8 +160,6 @@ bool checkWinnerTreeEmpty()
     if (nodeList[0] == -1) {
         fflush(fout);
         fclose(fout);
-        free(recordTmp);
-        free(recordMaxBufferSize);
         free(nodeList);
         free(nodeValue);
         return true;
@@ -291,49 +180,40 @@ static void winnerTreeUpdate(int nodeIdx, int updateIdx, int totalNode)
     winnerTreeUpdate(rightIdx, updateIdx, totalNode);
 
 	if (leftIdx >= totalNode &&  rightIdx >= totalNode && nodeList[nodeIdx] == updateIdx) {
-		SortFormat *newData = getSortData(updateIdx);
-		if (strlen(newData->recordBegin) != 0) {
-            free(nodeValue[updateIdx].value->recordBegin);
-            if (treeArgs->keyTag != NULL) {
-                free(nodeValue[updateIdx].value->keyBegin);
-            }
+		SortData *newData = getSortData(updateIdx);
+		if (newData != NULL) {
+            free(nodeValue[updateIdx].value->record);
             free(nodeValue[updateIdx].value);
 			nodeValue[updateIdx].value = newData;
 		} else {
-            char filename[31]; 
-            sprintf(filename, "%s%d_%d.rec", _WINNER_TREE_SPLIT_FILE, nodeValue[updateIdx].chunkIdx, nodeValue[updateIdx].fileIdx);
+            char splitFile[31], offsetFile[31]; 
+            sprintf(splitFile, "%s%d_%d.rec", _WINNER_TREE_SPLIT_FILE, nodeValue[updateIdx].chunkIdx, nodeValue[updateIdx].fileIdx);
+            sprintf(offsetFile, "%s%d_%d.rec", _WINNER_TREE_OFFSET_FILE, nodeValue[updateIdx].chunkIdx, nodeValue[updateIdx].fileIdx);
             fclose(fin[updateIdx]);
+            fclose(fmap[updateIdx]);
 
 			if (nodeValue[updateIdx].fileIdx != fileNum[nodeValue[updateIdx].chunkIdx - 1]) {
-                char newFilename[31];
-                sprintf(newFilename, "%s%d_%d.rec", _WINNER_TREE_SPLIT_FILE, nodeValue[updateIdx].chunkIdx, nodeValue[updateIdx].fileIdx + 1);
-                fin[updateIdx] = fopen(newFilename, "r");
+                char newSplitFile[31], newOffsetFile[31];
+                sprintf(newSplitFile, "%s%d_%d.rec", _WINNER_TREE_SPLIT_FILE, nodeValue[updateIdx].chunkIdx, nodeValue[updateIdx].fileIdx + 1);
+                sprintf(newOffsetFile, "%s%d_%d.rec", _WINNER_TREE_OFFSET_FILE, nodeValue[updateIdx].chunkIdx, nodeValue[updateIdx].fileIdx + 1);
+                fin[updateIdx] = fopen(newSplitFile, "r");
+                fmap[updateIdx] = fopen(newOffsetFile, "r");
 
-                free(recordTmp[updateIdx]);
-                recordTmp[updateIdx] = (char *) malloc(_DEFAULT_BUFFER_SIZE);
-                strcpy(recordTmp[updateIdx], "\0");
-
-                free(nodeValue[updateIdx].value->recordBegin);
-                if (treeArgs->keyTag != NULL) {
-                    free(nodeValue[updateIdx].value->keyBegin);
-                }
+                free(nodeValue[updateIdx].value->record);
                 free(nodeValue[updateIdx].value);
-                recordMaxBufferSize[updateIdx] = _DEFAULT_BUFFER_SIZE;
+
                 nodeValue[updateIdx].value = getSortData(updateIdx);
                 nodeValue[updateIdx].fileIdx += 1;
 			} else {
-                free(recordTmp[updateIdx]);
-                free(nodeValue[updateIdx].value->recordBegin);
-                if (treeArgs->keyTag != NULL) {
-                    free(nodeValue[updateIdx].value->keyBegin);
-                }
+                free(nodeValue[updateIdx].value->record);
                 free(nodeValue[updateIdx].value);
 				nodeList[nodeIdx] = -1;
 			}
 
             free(newData);
-			remove(filename);
-			printf("Sucessfully merge %s\n", filename);
+			remove(splitFile);
+            remove(offsetFile);
+			printf("Sucessfully merge %s\n", splitFile);
 		}
 	} else if (leftIdx < totalNode &&  rightIdx < totalNode && nodeList[nodeIdx] != -1) {
 		if (nodeList[leftIdx] == -1 && nodeList[rightIdx] == -1) {
@@ -354,10 +234,10 @@ static void winnerTreeUpdate(int nodeIdx, int updateIdx, int totalNode)
 
 void winnerTreePop()
 {
-    fwrite(nodeValue[nodeList[0]].value->recordBegin, strlen(nodeValue[nodeList[0]].value->recordBegin), sizeof(char), fout);
+    fwrite(nodeValue[nodeList[0]].value->record, strlen(nodeValue[nodeList[0]].value->record), sizeof(char), fout);
 
     int nodeNum = 1;
-    while (nodeNum < treeArgs->chunk) {
+    while (nodeNum < config->chunk) {
         nodeNum <<= 1;
     }
 

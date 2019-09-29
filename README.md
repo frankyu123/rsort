@@ -1,2 +1,2 @@
 # rsort
-An external mergesort
+A toolkit for sorting large texts
