@@ -2,4 +2,5 @@ rsort*
 result*
 split_text_*
 offset_*
+term.rec
 .DS_Store

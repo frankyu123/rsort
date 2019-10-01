@@ -8,7 +8,7 @@ else
 endif
 
 test:
-	./$(RSORTEXE) -chunk 4 -s 200000000 -d -r ../dataset/sample_100000.rec
+	./$(RSORTEXE) -chunk 16 -s 200000000 -rb @url: ../dataset/youtube2017.rec
 
 clean:
 ifeq ($(RSORTEXE), $(wildcard $(RSORTEXE)))

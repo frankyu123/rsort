@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
 
     struct stat st;
     stat(argv[argc-1], &st);
-    int limitChunkSize = st.st_size / config->chunk;
+    uint limitChunkSize = st.st_size / config->chunk;
 
     int size = _DEFAULT_BUFFER_SIZE;
     int maxInputBufferSize = _DEFAULT_BUFFER_SIZE;
@@ -58,7 +58,8 @@ int main(int argc, char *argv[])
     strcpy(tmpRecordBeginBuffer, "\0");
 
     SortData *data = malloc(size * sizeof(SortData));
-    int count = 0, memUsed = 0, chunkIdx = 1, fileIdx[config->chunk];
+    int count = 0, chunkIdx = 1, fileIdx[config->chunk];
+    uint memUsed = 0;
     for (int i = 0; i < config->chunk; i++) {
         fileIdx[i] = 0;
     }

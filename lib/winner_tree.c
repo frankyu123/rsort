@@ -21,7 +21,7 @@ static FILE **fin;
 static FILE **fmap;
 static FILE *fout;
 static int *fileNum;
-static int currentFileIdx = 0;
+static int _currentFileIdx = 0;
 
 // Tree variables
 static SortConfig *config;
@@ -97,11 +97,11 @@ static void winnerTreeInsert(int nodeIdx, int totalNode)
     winnerTreeInsert(leftIdx, totalNode);
     winnerTreeInsert(rightIdx, totalNode);
 
-    if (leftIdx >= totalNode && rightIdx >= totalNode && currentFileIdx < config->chunk) {
-        nodeList[nodeIdx] = currentFileIdx;
-        nodeValue[currentFileIdx].value = getSortData(currentFileIdx);
-        ++currentFileIdx;
-    } else if (leftIdx >= totalNode && rightIdx >= totalNode && currentFileIdx >= config->chunk) {
+    if (leftIdx >= totalNode && rightIdx >= totalNode && _currentFileIdx < config->chunk) {
+        nodeList[nodeIdx] = _currentFileIdx;
+        nodeValue[_currentFileIdx].value = getSortData(_currentFileIdx);
+        ++_currentFileIdx;
+    } else if (leftIdx >= totalNode && rightIdx >= totalNode && _currentFileIdx >= config->chunk) {
         nodeList[nodeIdx] = -1;
     } else {
 		if (nodeList[leftIdx] == -1 && nodeList[rightIdx] == -1) {
