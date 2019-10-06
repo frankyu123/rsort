@@ -2,44 +2,49 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/time.h>
 #include "winner_tree.h"
 
-#define _DEFAULT_BUFFER_SIZE 1024
-#define _WINNER_TREE_SPLIT_FILE "split_text_"
-#define _WINNER_TREE_OFFSET_FILE "offset_"
-#define _WINNER_TREE_RESULT_FILE "result.rec"
+#ifdef __linux__
+#include <pthread.h>
+#endif
 
-typedef struct WinnerTreeNode {
-    SortData *value;
-    int chunkIdx;
-    int fileIdx;
-} WinnerTreeNode;
+#ifdef __APPLE__
+#include "pthread_barrier.h"
+#endif
 
-// File variables
-static FILE **fin;
-static FILE **fmap;
-static FILE *fout;
-static int *fileNum;
-static int _currentFileIdx = 0;
+#define _WINNER_TREE_SPLIT_FILE "split_text"
+#define _WINNER_TREE_OFFSET_FILE "offset"
 
-// Tree variables
+typedef struct ThreadArgs {
+    int endIdx;
+    int newFileNo;
+} ThreadArgs;
+
+typedef struct WinnerTree {
+    int *nodeList;
+    SortData *nodeValue;
+} WinnerTree;
+
+static int _fileNum;
 static SortConfig *config;
-static int *nodeList;
-static WinnerTreeNode *nodeValue;
+static int _nodeNum = 1;
+static pthread_barrier_t pbt;
 
-static SortData *getSortData(int fileIdx)
+static char *getSortData(FILE *fin, FILE *fmap)
 {
-    SortData *data = malloc(sizeof(SortData));
+    char *record = NULL;
     int size;
-    if (fscanf(fmap[fileIdx], "%d\n", &size) != EOF) {
-        data->record = (char *) malloc(size + 2);
-        memset(data->record, '\0', size + 2);
-        fread(data->record, size, sizeof(char), fin[fileIdx]);
-        return data;
-    } else {
+
+    if (fmap == NULL) {
         return NULL;
     }
+
+    if (fscanf(fmap, "%d\n", &size) != EOF) {
+        record = (char *) malloc(size + 2);
+        memset(record, '\0', size + 2);
+        fread(record, size, sizeof(char), fin);
+    }
+    return record;
 }
 
 static bool nodeCmp(SortData *left, SortData *right) 
@@ -86,160 +91,208 @@ static bool nodeCmp(SortData *left, SortData *right)
     }
 }
 
-static void winnerTreeInsert(int nodeIdx, int totalNode)
+static void initWinnerTree(WinnerTree *tree, int nodeIdx, FILE **fin, FILE **fmap)
 {
-    if (nodeIdx >= totalNode) {
+    if (nodeIdx >= _nodeNum) {
         return;
     }
 
     int leftIdx = 2 * nodeIdx + 1;
     int rightIdx = 2 * nodeIdx + 2;
-    winnerTreeInsert(leftIdx, totalNode);
-    winnerTreeInsert(rightIdx, totalNode);
+    initWinnerTree(tree, leftIdx, fin, fmap);
+    initWinnerTree(tree, rightIdx, fin, fmap);
 
-    if (leftIdx >= totalNode && rightIdx >= totalNode && _currentFileIdx < config->chunk) {
-        nodeList[nodeIdx] = _currentFileIdx;
-        nodeValue[_currentFileIdx].value = getSortData(_currentFileIdx);
-        ++_currentFileIdx;
-    } else if (leftIdx >= totalNode && rightIdx >= totalNode && _currentFileIdx >= config->chunk) {
-        nodeList[nodeIdx] = -1;
+    if (leftIdx >= _nodeNum && rightIdx >= _nodeNum) {
+        int idx = nodeIdx - (_nodeNum - config->chunk);
+        tree->nodeList[nodeIdx] = idx;
+        char *data = getSortData(fin[idx], fmap[idx]);
+        if (data == NULL) {
+            tree->nodeList[nodeIdx] = -1;
+        } else {
+            tree->nodeValue[idx].record = (char *) malloc(strlen(data) + 1);
+            strcpy(tree->nodeValue[idx].record, data);
+        }
+        free(data);
     } else {
-		if (nodeList[leftIdx] == -1 && nodeList[rightIdx] == -1) {
-			nodeList[nodeIdx] = -1;
-		} else if (nodeList[leftIdx] != -1 && nodeList[rightIdx] == -1) {
-			nodeList[nodeIdx] = nodeList[leftIdx];
-		} else if (nodeList[leftIdx] == -1 && nodeList[rightIdx] != -1) {
-			nodeList[nodeIdx] = nodeList[rightIdx];
+		if (tree->nodeList[leftIdx] == -1 && tree->nodeList[rightIdx] == -1) {
+			tree->nodeList[nodeIdx] = -1;
+		} else if (tree->nodeList[leftIdx] != -1 && tree->nodeList[rightIdx] == -1) {
+			tree->nodeList[nodeIdx] = tree->nodeList[leftIdx];
+		} else if (tree->nodeList[leftIdx] == -1 && tree->nodeList[rightIdx] != -1) {
+			tree->nodeList[nodeIdx] = tree->nodeList[rightIdx];
 		} else {
-			if (nodeCmp(nodeValue[nodeList[leftIdx]].value, nodeValue[nodeList[rightIdx]].value)) {
-				nodeList[nodeIdx] = nodeList[leftIdx];
+			if (nodeCmp(&tree->nodeValue[tree->nodeList[leftIdx]], &tree->nodeValue[tree->nodeList[rightIdx]])) {
+				tree->nodeList[nodeIdx] = tree->nodeList[leftIdx];
 			} else {
-				nodeList[nodeIdx] = nodeList[rightIdx];
+				tree->nodeList[nodeIdx] = tree->nodeList[rightIdx];
 			}
 		}
     }
 }
 
-void initWinnerTree(SortConfig *conf, int *fileInfo)
-{   
-    config = conf;
-    fileNum = fileInfo;
-
-    fin = (FILE **) malloc((config->chunk + 1) * sizeof(FILE *));
-    fmap = (FILE **) malloc((config->chunk + 1) * sizeof(FILE *));
-    char splitFile[31], offsetFile[31]; 
-    for (int i = 1; i <= config->chunk; i++) {
-        sprintf(splitFile, "%s%d_%d.rec", _WINNER_TREE_SPLIT_FILE, i, 1);
-        sprintf(offsetFile, "%s%d_%d.rec", _WINNER_TREE_OFFSET_FILE, i, 1);
-        fin[i-1] = fopen(splitFile, "r");
-        fmap[i-1] = fopen(offsetFile, "r");
-    }
-    fout = fopen(_WINNER_TREE_RESULT_FILE, "w");
-
-    int nodeNum = 1;
-    while (nodeNum < config->chunk) {
-        nodeNum <<= 1;
-    }
-
-    nodeList = (int *) malloc((2 * nodeNum - 1) * sizeof(int));
-    for (int i = 0; i < 2 * nodeNum - 1; i++) {
-        nodeList[i] = -1;
-    }
-
-    nodeValue = (WinnerTreeNode *) malloc(config->chunk * sizeof(WinnerTreeNode));
-    for (int i = 0; i < config->chunk; i++) {
-        nodeValue[i].chunkIdx = i + 1;
-        nodeValue[i].fileIdx = 1;
-    }
-
-    winnerTreeInsert(0, 2 * nodeNum - 1);
-}
-
-bool checkWinnerTreeEmpty()
+static void updateWinnerTree(WinnerTree *tree, int nodeIdx, int updateIdx, FILE **fin, FILE **fmap)
 {
-    if (nodeList[0] == -1) {
-        fflush(fout);
-        fclose(fout);
-        free(nodeList);
-        free(nodeValue);
-        return true;
-    } else {
-        return false;
-    }
-}
-
-static void winnerTreeUpdate(int nodeIdx, int updateIdx, int totalNode)
-{
-    if (nodeIdx >= totalNode) {
+    if (nodeIdx >= _nodeNum) {
         return;
     }
 
     int leftIdx = 2 * nodeIdx + 1;
     int rightIdx = 2 * nodeIdx + 2;
-    winnerTreeUpdate(leftIdx, updateIdx, totalNode);
-    winnerTreeUpdate(rightIdx, updateIdx, totalNode);
+    updateWinnerTree(tree, leftIdx, updateIdx, fin, fmap);
+    updateWinnerTree(tree, rightIdx, updateIdx, fin, fmap);
 
-	if (leftIdx >= totalNode &&  rightIdx >= totalNode && nodeList[nodeIdx] == updateIdx) {
-		SortData *newData = getSortData(updateIdx);
+	if (leftIdx >= _nodeNum &&  rightIdx >= _nodeNum && tree->nodeList[nodeIdx] == updateIdx) {
+		char *newData = getSortData(fin[updateIdx], fmap[updateIdx]);
 		if (newData != NULL) {
-            free(nodeValue[updateIdx].value->record);
-            free(nodeValue[updateIdx].value);
-			nodeValue[updateIdx].value = newData;
+            free(tree->nodeValue[updateIdx].record);
+            tree->nodeValue[updateIdx].record = (char *) malloc(strlen(newData) + 1);
+			strcpy(tree->nodeValue[updateIdx].record, newData);
 		} else {
-            char splitFile[31], offsetFile[31]; 
-            sprintf(splitFile, "%s%d_%d.rec", _WINNER_TREE_SPLIT_FILE, nodeValue[updateIdx].chunkIdx, nodeValue[updateIdx].fileIdx);
-            sprintf(offsetFile, "%s%d_%d.rec", _WINNER_TREE_OFFSET_FILE, nodeValue[updateIdx].chunkIdx, nodeValue[updateIdx].fileIdx);
-            fclose(fin[updateIdx]);
-            fclose(fmap[updateIdx]);
-
-			if (nodeValue[updateIdx].fileIdx != fileNum[nodeValue[updateIdx].chunkIdx - 1]) {
-                char newSplitFile[31], newOffsetFile[31];
-                sprintf(newSplitFile, "%s%d_%d.rec", _WINNER_TREE_SPLIT_FILE, nodeValue[updateIdx].chunkIdx, nodeValue[updateIdx].fileIdx + 1);
-                sprintf(newOffsetFile, "%s%d_%d.rec", _WINNER_TREE_OFFSET_FILE, nodeValue[updateIdx].chunkIdx, nodeValue[updateIdx].fileIdx + 1);
-                fin[updateIdx] = fopen(newSplitFile, "r");
-                fmap[updateIdx] = fopen(newOffsetFile, "r");
-
-                free(nodeValue[updateIdx].value->record);
-                free(nodeValue[updateIdx].value);
-
-                nodeValue[updateIdx].value = getSortData(updateIdx);
-                nodeValue[updateIdx].fileIdx += 1;
-			} else {
-                free(nodeValue[updateIdx].value->record);
-                free(nodeValue[updateIdx].value);
-				nodeList[nodeIdx] = -1;
-			}
-
-            free(newData);
-			remove(splitFile);
-            remove(offsetFile);
-			printf("Sucessfully merge %s\n", splitFile);
+            free(tree->nodeValue[updateIdx].record);
+			tree->nodeList[nodeIdx] = -1;
 		}
-	} else if (leftIdx < totalNode &&  rightIdx < totalNode && nodeList[nodeIdx] != -1) {
-		if (nodeList[leftIdx] == -1 && nodeList[rightIdx] == -1) {
-			nodeList[nodeIdx] = -1;
-		} else if (nodeList[leftIdx] != -1 && nodeList[rightIdx] == -1) {
-			nodeList[nodeIdx] = nodeList[leftIdx];
-		} else if (nodeList[leftIdx] == -1 && nodeList[rightIdx] != -1) {
-			nodeList[nodeIdx] = nodeList[rightIdx];
+        free(newData);
+	} else if (leftIdx < _nodeNum &&  rightIdx < _nodeNum && tree->nodeList[nodeIdx] != -1) {
+		if (tree->nodeList[leftIdx] == -1 && tree->nodeList[rightIdx] == -1) {
+			tree->nodeList[nodeIdx] = -1;
+		} else if (tree->nodeList[leftIdx] != -1 && tree->nodeList[rightIdx] == -1) {
+			tree->nodeList[nodeIdx] = tree->nodeList[leftIdx];
+		} else if (tree->nodeList[leftIdx] == -1 && tree->nodeList[rightIdx] != -1) {
+			tree->nodeList[nodeIdx] = tree->nodeList[rightIdx];
 		} else {
-			if (nodeCmp(nodeValue[nodeList[leftIdx]].value, nodeValue[nodeList[rightIdx]].value)) {
-				nodeList[nodeIdx] = nodeList[leftIdx];
+			if (nodeCmp(&tree->nodeValue[tree->nodeList[leftIdx]], &tree->nodeValue[tree->nodeList[rightIdx]])) {
+				tree->nodeList[nodeIdx] = tree->nodeList[leftIdx];
 			} else {
-				nodeList[nodeIdx] = nodeList[rightIdx];
+				tree->nodeList[nodeIdx] = tree->nodeList[rightIdx];
 			}
 		}
 	}
 }
 
-void winnerTreePop()
+static void *job(void *argv)
 {
-    fwrite(nodeValue[nodeList[0]].value->record, strlen(nodeValue[nodeList[0]].value->record), sizeof(char), fout);
+    ThreadArgs *args = (ThreadArgs *) argv;
 
-    int nodeNum = 1;
-    while (nodeNum < config->chunk) {
-        nodeNum <<= 1;
+    FILE **fin = malloc((config->chunk + 1) * sizeof(FILE *));
+    FILE **fmap = malloc((config->chunk + 1) * sizeof(FILE *));
+    char splitFile[31], offsetFile[31], newFile[31], newMap[31];
+    for (int i = 0; i < config->chunk; i++) {
+        sprintf(splitFile, "%s_%d.rec", _WINNER_TREE_SPLIT_FILE, args->endIdx - (config->chunk - 1) + i);
+        sprintf(offsetFile, "%s_%d.rec", _WINNER_TREE_OFFSET_FILE, args->endIdx - (config->chunk - 1) + i);
+        fin[i] = fopen(splitFile, "r");
+        fmap[i] = fopen(offsetFile, "r");
     }
 
-    winnerTreeUpdate(0, nodeList[0], 2 * nodeNum - 1);
+    sprintf(newFile, "%s_%d.rec", _WINNER_TREE_SPLIT_FILE, args->newFileNo);
+    sprintf(newMap, "%s_%d.rec", _WINNER_TREE_OFFSET_FILE, args->newFileNo);
+    FILE *fout = fopen(newFile, "w");
+    FILE *fnmap = fopen(newMap, "w");
+
+    WinnerTree *tree = malloc(sizeof(WinnerTree));
+    tree->nodeValue = (SortData *) malloc(config->chunk * sizeof(SortData));
+    tree->nodeList = (int *) malloc(_nodeNum * sizeof(int));
+    for (int i = 0; i < _nodeNum; i++) {
+        tree->nodeList[i] = -1;
+    }
+
+    initWinnerTree(tree, 0, fin, fmap);
+    while (true) {
+        if (tree->nodeList[0] == -1) {
+            free(tree->nodeList);
+            free(tree->nodeValue);
+            free(tree);
+            break;
+        }
+        fprintf(fout, "%s", tree->nodeValue[tree->nodeList[0]].record);
+        fprintf(fnmap, "%d\n", (int) strlen(tree->nodeValue[tree->nodeList[0]].record));
+        updateWinnerTree(tree, 0, tree->nodeList[0], fin, fmap);
+    }
+
+    for (int i = 0; i < config->chunk; i++) {
+        sprintf(splitFile, "%s_%d.rec", _WINNER_TREE_SPLIT_FILE, args->endIdx - (config->chunk - 1) + i);
+        sprintf(offsetFile, "%s_%d.rec", _WINNER_TREE_OFFSET_FILE, args->endIdx - (config->chunk - 1) + i);
+        fclose(fin[i]);
+        fclose(fmap[i]);
+        remove(splitFile);
+        remove(offsetFile);
+    }
+    fclose(fout);
+    fclose(fnmap);
+
+    return NULL;
+}
+
+void mergeKFile(int fileNum, SortConfig *conf)
+{
+    config = conf;
+    while (_nodeNum < config->chunk) {
+        _nodeNum <<= 1;
+    }
+    _nodeNum = 2 * _nodeNum - 1;
+
+    int cnt = 0;
+    while (fileNum - cnt > config->chunk) {
+        int threadNum = (fileNum - cnt) / config->chunk;
+
+        if (threadNum > config->thread) {
+            threadNum = config->thread;
+        }
+
+        pthread_t tids[threadNum];
+        pthread_barrier_init(&pbt, NULL, threadNum + 1);
+        for (int i = 0; i < threadNum; i++) {
+            ThreadArgs *args = (ThreadArgs *) malloc(sizeof(ThreadArgs));
+            args->endIdx = cnt + config->chunk * (i + 1);
+            args->newFileNo = fileNum + (i + 1);
+            pthread_create(&tids[i], NULL, job, args);
+        }
+
+        for (int i = 0; i < threadNum; i++) {
+            pthread_join(tids[i], NULL);
+        }
+
+        pthread_barrier_destroy(&pbt);
+        cnt += threadNum * config->chunk;
+        fileNum += threadNum;
+    }
+
+    FILE **fin = malloc((config->chunk + 1) * sizeof(FILE *));
+    FILE **fmap = malloc((config->chunk + 1) * sizeof(FILE *));
+    char splitFile[31], offsetFile[31];
+    for (int i = 0; i < config->chunk; i++) {
+        sprintf(splitFile, "%s_%d.rec", _WINNER_TREE_SPLIT_FILE, cnt + i + 1);
+        sprintf(offsetFile, "%s_%d.rec", _WINNER_TREE_OFFSET_FILE, cnt + i + 1);
+        fin[i] = fopen(splitFile, "r");
+        fmap[i] = fopen(offsetFile, "r");
+    }
+    FILE *fout = stdout;
+
+    WinnerTree *tree = malloc(sizeof(WinnerTree));
+    tree->nodeValue = (SortData *) malloc(config->chunk * sizeof(SortData));
+    tree->nodeList = (int *) malloc(_nodeNum * sizeof(int));
+    for (int i = 0; i < _nodeNum; i++) {
+        tree->nodeList[i] = -1;
+    }
+
+    initWinnerTree(tree, 0, fin, fmap);
+    while (true) {
+        if (tree->nodeList[0] == -1) {
+            free(tree->nodeList);
+            free(tree->nodeValue);
+            free(tree);
+            break;
+        }
+        fprintf(fout, "%s", tree->nodeValue[tree->nodeList[0]].record);
+        updateWinnerTree(tree, 0, tree->nodeList[0], fin, fmap);
+    }
+
+    for (int i = 0; i < config->chunk; i++) {
+        sprintf(splitFile, "%s_%d.rec", _WINNER_TREE_SPLIT_FILE, cnt + i + 1);
+        sprintf(offsetFile, "%s_%d.rec", _WINNER_TREE_OFFSET_FILE, cnt + i + 1);
+        fclose(fin[i]);
+        fclose(fmap[i]);
+        remove(splitFile);
+        remove(offsetFile);
+    }
+    fclose(fout);
 }

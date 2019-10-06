@@ -6,7 +6,7 @@
 // case -k              : sort by specific key column
 // case -n              : numerical comparison
 // case -r              : reverse order
-// case -chunk          : external chunk number
+// case -chunk          : number of external chunk
 // case -s              : limit file size (byte)
 // case -parallel       : number of threads using in sort
 //***************************************************************************
@@ -14,17 +14,14 @@
 #include "main.h"
 
 #define _DEFAULT_BUFFER_SIZE 1024
-#define _SPLIT_FILE "split_text_"
-#define _OFFSET_FILE "offset_"
+#define _SPLIT_FILE "split_text"
+#define _OFFSET_FILE "offset"
 #define _TERM_FILE "term.rec"
+
+static int _fileNum = 0;
 
 int main(int argc, char *argv[])
 {
-    struct timeval start, end;
-    long long startusec, endusec;
-    double duration, totalDuration = 0;
-    gettimeofday(&start, NULL);
-
     SortConfig *config = initSortConfig(argc, argv);
 
     FILE *fin;
@@ -35,16 +32,10 @@ int main(int argc, char *argv[])
         fin = fopen(_TERM_FILE, "r");
     } else {
         fin = fopen(argv[argc-1], "r");
+        if (argc == 1 || fin == NULL) {
+            fin = stdin;
+        }
     }
-
-    if (fin == NULL) {
-        perror("Error fopen input file ");
-        exit(0);
-    }
-
-    struct stat st;
-    stat(argv[argc-1], &st);
-    uint limitChunkSize = st.st_size / config->chunk;
 
     int size = _DEFAULT_BUFFER_SIZE;
     int maxInputBufferSize = _DEFAULT_BUFFER_SIZE;
@@ -57,14 +48,9 @@ int main(int argc, char *argv[])
     tmpRecordBeginBuffer = (char *) malloc(_DEFAULT_BUFFER_SIZE * sizeof(char));
     strcpy(tmpRecordBeginBuffer, "\0");
 
+    // Parser
     SortData *data = malloc(size * sizeof(SortData));
-    int count = 0, chunkIdx = 1, fileIdx[config->chunk];
-    uint memUsed = 0;
-    for (int i = 0; i < config->chunk; i++) {
-        fileIdx[i] = 0;
-    }
-
-    // Get input data
+    int count = 0, memUsed = 0;
     while (fgets(inputBuffer, _DEFAULT_BUFFER_SIZE, fin) != NULL) {
         if (strlen(tmpInputBuffer) + strlen(inputBuffer) >= maxInputBufferSize) {
             maxInputBufferSize = strlen(tmpInputBuffer) + strlen(inputBuffer) + _DEFAULT_BUFFER_SIZE;
@@ -84,8 +70,8 @@ int main(int argc, char *argv[])
                 memUsed += strlen(data[count].record);
                 ++count;
                 
-                if (memUsed >= limitChunkSize) {
-                    fileIdx[chunkIdx-1] = splitKFile(&data, count, chunkIdx, config);
+                if (memUsed >= config->maxFileSize) {
+                    splitKFile(&data, count, config);
 
                     for (int i = 0; i < count; i++) {
                         free(data[i].record);
@@ -94,9 +80,7 @@ int main(int argc, char *argv[])
 
                     size = _DEFAULT_BUFFER_SIZE;
                     data = (SortData *) malloc(size * sizeof(SortData));
-                    count = 0;
-                    memUsed = 0;
-                    ++chunkIdx;
+                    count = memUsed = 0;
                 }
             } else {
                 bool findRecord = false;
@@ -118,8 +102,8 @@ int main(int argc, char *argv[])
                         memUsed += strlen(data[count].record);
                         ++count;
 
-                        if (memUsed >= limitChunkSize) {
-                            fileIdx[chunkIdx-1] = splitKFile(&data, count, chunkIdx, config);
+                        if (memUsed >= config->maxFileSize) {
+                            splitKFile(&data, count, config);
 
                             for (int i = 0; i < count; i++) {
                                 free(data[i].record);
@@ -128,9 +112,7 @@ int main(int argc, char *argv[])
 
                             size = _DEFAULT_BUFFER_SIZE;
                             data = (SortData *) malloc(size * sizeof(SortData));
-                            count = 0;
-                            memUsed = 0;
-                            ++chunkIdx;
+                            count = memUsed = 0;
                         }
 
                         free(tmpRecordBeginBuffer);
@@ -166,9 +148,9 @@ int main(int argc, char *argv[])
         ++count;
     }
 
-    // Write last chunk in file
-    if (count != 0 && chunkIdx <= config->chunk) {
-        fileIdx[chunkIdx-1] = splitKFile(&data, count, chunkIdx, config);
+    // Write remaining records in file
+    if (count != 0) {
+        splitKFile(&data, count, config);
         for (int i = 0; i < count; i++) {
             free(data[i].record);
         }
@@ -177,30 +159,18 @@ int main(int argc, char *argv[])
     free(inputBuffer);
     free(tmpInputBuffer);
     free(tmpRecordBeginBuffer);
+    fclose(fin);
 
     // Merge
-    if (fileIdx[0] == 0) {
+    if (_fileNum == 0) {
         perror("Error fgets or file is empty ");
         exit(0);
-    } else if (fileIdx[0] == 1 && config->chunk == 1) {
-        rename("split_text_1_1.rec", "result.rec");
     } else {
-        mergeKFile(fileIdx, config);
+        mergeKFile(_fileNum, config);
     }
 
     if (config->isCutByDelim) {
         remove(_TERM_FILE);
-    }
-
-    gettimeofday(&end, NULL);
-    startusec = start.tv_sec * 1000000 + start.tv_usec;
-    endusec = end.tv_sec * 1000000 + end.tv_usec;
-    duration = (double) (endusec - startusec) / 1000000.0;
-
-    if (duration > 60.0) {
-        printf("Rsort spends %d min %lf sec\n", (int) duration / 60, fmod(duration, 60.0));
-    } else {
-        printf("Rsort spends %lf sec\n", duration);
     }
 
     return 0;
@@ -213,7 +183,7 @@ SortConfig *initSortConfig(int argc, char *argv[])
     config->reverse = config->isCutByDelim = config->numeric = false;
     config->chunk = 1;
     config->maxFileSize = 1000000000; // Default approx. 1GB
-    config->thread = 5;
+    config->thread = 4;
 
     for (int i = 0; i < argc; i++) {
         if (strcmp(argv[i], "-rb") == 0) {
@@ -249,53 +219,28 @@ SortConfig *initSortConfig(int argc, char *argv[])
     return config;
 }
 
-int splitKFile(SortData **data, int size, int chunkIdx, SortConfig *config)
+void splitKFile(SortData **data, int size, SortConfig *config)
 {
+    ++_fileNum;
+
     int *idx = (int *) malloc(size * sizeof(int));
     for (int i = 0; i < size; i++) {
         idx[i] = i;
     }
     mergeSort(data, &idx, size, config);
 
-    int fileNum = 1;
     char splitFile[31], offsetFile[31];
-    sprintf(splitFile, "%s%d_%d.rec", _SPLIT_FILE, chunkIdx, fileNum);
-    sprintf(offsetFile, "%s%d_%d.rec", _OFFSET_FILE, chunkIdx, fileNum);
-    int memUsed = 0;
+    sprintf(splitFile, "%s_%d.rec", _SPLIT_FILE, _fileNum);
+    sprintf(offsetFile, "%s_%d.rec", _OFFSET_FILE, _fileNum);
 
     FILE *fout = fopen(splitFile, "w");
     FILE *fmap = fopen(offsetFile, "w");
     for (int i = 0; i < size; i++) {
         fwrite((*data)[idx[i]].record, sizeof(char), strlen((*data)[idx[i]].record), fout);
         fprintf(fmap, "%d\n", (int) strlen((*data)[idx[i]].record));
-        memUsed += strlen((*data)[idx[i]].record);
-        if (memUsed >= config->maxFileSize) {
-            fclose(fout);
-            fclose(fmap);
-            ++fileNum;
-            sprintf(splitFile, "%s%d_%d.rec", _SPLIT_FILE, chunkIdx, fileNum);
-            sprintf(offsetFile, "%s%d_%d.rec", _OFFSET_FILE, chunkIdx, fileNum);
-            fout = fopen(splitFile, "w");
-            fmap = fopen(offsetFile, "w");
-            memUsed = 0;
-        }
     }
     
     fclose(fout);
     fclose(fmap);
-    printf("Write %d files for chunk %d.\n", fileNum, chunkIdx);
     free(idx);
-    return fileNum;
-}
-
-void mergeKFile(int *fileIdx, SortConfig *config)
-{
-    initWinnerTree(config, fileIdx);
-
-    while (true) {
-        if (checkWinnerTreeEmpty()) {
-            break;
-        }
-        winnerTreePop();
-    }
 }

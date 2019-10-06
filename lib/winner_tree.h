@@ -4,8 +4,6 @@
 #include "mergesort.h"
 #include <stdbool.h>
 
-extern void initWinnerTree(SortConfig *, int *);
-extern bool checkWinnerTreeEmpty();
-extern void winnerTreePop();
+extern void mergeKFile(int, SortConfig *);
 
 #endif

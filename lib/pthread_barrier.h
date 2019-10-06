@@ -16,7 +16,7 @@ typedef struct
 } pthread_barrier_t;
 
 
-int pthread_barrier_init(pthread_barrier_t *barrier, const pthread_barrierattr_t *attr, unsigned int count)
+static inline int pthread_barrier_init(pthread_barrier_t *barrier, const pthread_barrierattr_t *attr, unsigned int count)
 {
     if(count == 0)
     {
@@ -38,14 +38,14 @@ int pthread_barrier_init(pthread_barrier_t *barrier, const pthread_barrierattr_t
     return 0;
 }
 
-int pthread_barrier_destroy(pthread_barrier_t *barrier)
+static inline int pthread_barrier_destroy(pthread_barrier_t *barrier)
 {
     pthread_cond_destroy(&barrier->cond);
     pthread_mutex_destroy(&barrier->mutex);
     return 0;
 }
 
-int pthread_barrier_wait(pthread_barrier_t *barrier)
+static inline int pthread_barrier_wait(pthread_barrier_t *barrier)
 {
     pthread_mutex_lock(&barrier->mutex);
     ++(barrier->count);

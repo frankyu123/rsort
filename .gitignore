@@ -1,4 +1,5 @@
-rsort*
+rsort
+seg
 result*
 split_text_*
 offset_*

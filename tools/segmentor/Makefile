@@ -1,7 +1,7 @@
 EXE = seg
 
 build:
-	gcc -g termSegByDelim.c -o $(EXE)
+	gcc termSegByDelim.c -o $(EXE)
 
 clean:
 ifeq ($(EXE), $(wildcard $(EXE)))
