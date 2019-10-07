@@ -26,10 +26,15 @@ int main(int argc, char *argv[])
 
     FILE *fin;
     if (config->isCutByDelim) {
-        char cmd[300];
-        sprintf(cmd, "./tools/segmentor/seg < %s > %s", argv[argc-1], _TERM_FILE);
-        system(cmd);
-        fin = fopen(_TERM_FILE, "r");
+        if (access("./tools/segmentor/seg", F_OK) != 0) {
+            fprintf(stderr, "Please compile tools/sementor first\n");
+            exit(0);
+        } else {
+            char cmd[300];
+            sprintf(cmd, "./tools/segmentor/seg < %s > %s", argv[argc-1], _TERM_FILE);
+            system(cmd);
+            fin = fopen(_TERM_FILE, "r");
+        }
     } else {
         fin = fopen(argv[argc-1], "r");
         if (argc == 1 || fin == NULL) {
@@ -163,7 +168,7 @@ int main(int argc, char *argv[])
 
     // Merge
     if (_fileNum == 0) {
-        perror("Error fgets or file is empty ");
+        fprintf(stderr, "Error fgets or file is empty\n");
         exit(0);
     } else {
         mergeKFile(_fileNum, config);

@@ -8,7 +8,6 @@ ifeq ($(OS), Darwin)
 else
 	gcc main.c lib/mergesort.c lib/winner_tree.c -o $(RSORTEXE)
 endif
-	cd $(SEGDIR) && make
 
 test:
 	./$(RSORTEXE) -chunk 4 -s 5000000 ../../../tcount/result.rec > result.rec
