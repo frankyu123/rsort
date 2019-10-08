@@ -28,7 +28,7 @@ int main(int argc, char *argv[])
     FILE *fin;
     if (config->isCutByDelim) {
         if (access("./tools/segmentor/seg", F_OK) != 0) {
-            fprintf(stderr, "Please compile tools/sementor first\n");
+            fprintf(stderr, "Please compile tools/segmentor first\n");
             exit(0);
         } else {
             char cmd[300];

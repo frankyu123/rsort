@@ -8,6 +8,7 @@ ifeq ($(OS), Darwin)
 else
 	gcc main.c lib/mergesort.c lib/winner_tree.c -o $(RSORTEXE)
 endif
+	cd $(SEGDIR) && make
 
 test:
 	./$(RSORTEXE) -chunk 4 -s 5000000 ../../../tcount/result.rec > result.rec
@@ -20,7 +21,4 @@ endif
 ifeq ($(RSORTEXE).dSYM, $(wildcard $(RSORTEXE).dSYM))
 	rm -rf $(RSORTEXE).dSYM
 endif
-
-ifeq ($(SEGDIR)/$(SEGEXE), $(wildcard, $(SEGDIR)/$(SEGEXE)))
-	rm $(SEGDIR)/$(SEGEXE)
-endif
+	cd $(SEGDIR) && make clean
