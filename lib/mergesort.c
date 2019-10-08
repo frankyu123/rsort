@@ -22,6 +22,25 @@ static pthread_barrier_t pbt;
 static SortData *result;
 static int *idx = NULL;
 
+static char *getKeyCol(char *str)
+{
+    char *last = NULL;
+    char *ptr = strstr(str, config->keyTag);
+
+    int cnt = 1;
+    while ((cnt < config->keyPos || config->keyPos == -1) && ptr != NULL) {
+        last = ptr;
+        ptr = strstr(ptr + 1, config->keyTag);
+        ++cnt;
+    }
+
+    if (last != NULL && config->keyPos == -1) {
+        ptr = last;
+    }
+
+    return ptr;
+}
+
 static int qcmp(const void *a,const void *b)
 {
     int leftIdx = *(int *) a, rightIdx = *(int *) b;
@@ -39,15 +58,16 @@ static int qcmp(const void *a,const void *b)
             return (!config->reverse) ? (int) strcmp(result[leftIdx].record, result[rightIdx].record) : (int) strcmp(result[rightIdx].record, result[leftIdx].record);
         }
     } else {
-        if (strstr(result[leftIdx].record, config->keyTag) == NULL) {
+        char *lptr, *rptr;
+        if ((lptr = getKeyCol(result[leftIdx].record)) == NULL) {
             return (!config->reverse) ? 1 : -1;
-        } else if (strstr(result[rightIdx].record, config->keyTag) == NULL) {
+        } else if ((rptr = getKeyCol(result[rightIdx].record)) == NULL) {
             return (!config->reverse) ? -1 : 1;
         }
 
          if (config->numeric) {
-            long leftNum = strtol(strstr(result[leftIdx].record, config->keyTag), &leftPtr, 10);
-            long rightNum = strtol(strstr(result[rightIdx].record, config->keyTag), &rightPtr, 10);
+            long leftNum = strtol(lptr, &leftPtr, 10);
+            long rightNum = strtol(rptr, &rightPtr, 10);
             if (leftNum != rightNum) {
                 return (!config->reverse) ? (int) rightNum - leftNum : (int) leftNum - rightNum; 
             } else {
@@ -55,9 +75,9 @@ static int qcmp(const void *a,const void *b)
             }
         } else {
             if (!config->reverse) {
-                return (int) strcmp(strstr(result[leftIdx].record, config->keyTag), strstr(result[rightIdx].record, config->keyTag));
+                return (int) strcmp(lptr, rptr);
             } else {
-                return (int) strcmp(strstr(result[rightIdx].record, config->keyTag), strstr(result[leftIdx].record, config->keyTag));
+                return (int) strcmp(rptr, lptr);
             }
         }
     }
@@ -83,22 +103,23 @@ static bool mcmp(int leftPos, int rightPos)
             }
         }
     } else {
-        if (strstr(result[idx[leftPos]].record, config->keyTag) == NULL) {
+        char *lptr, *rptr;
+        if ((lptr = getKeyCol(result[idx[leftPos]].record)) == NULL) {
             return (!config->reverse) ? true : false;
-        } else if (strstr(result[idx[rightPos]].record, config->keyTag) == NULL) {
+        } else if ((rptr = getKeyCol(result[idx[rightPos]].record)) == NULL) {
             return (!config->reverse) ? false : true;
         }
 
         if (config->numeric) {
-            long leftNum = strtol(strstr(result[idx[leftPos]].record, config->keyTag), &leftPtr, 10);
-            long rightNum = strtol(strstr(result[idx[rightPos]].record, config->keyTag), &rightPtr, 10);
+            long leftNum = strtol(lptr, &leftPtr, 10);
+            long rightNum = strtol(rptr, &rightPtr, 10);
             if (leftNum > rightNum || (leftNum == rightNum && strcmp(leftPtr, rightPtr) < 0)) {
                 return (!config->reverse) ? true : false; 
             } else {
                 return (!config->reverse) ? false :true;
             }
         } else {
-            if (strcmp(strstr(result[idx[leftPos]].record, config->keyTag), strstr(result[idx[rightPos]].record, config->keyTag)) <= 0) {
+            if (strcmp(lptr, rptr) <= 0) {
                 return (!config->reverse) ? true : false;
             } else {
                 return (!config->reverse) ? false : true;

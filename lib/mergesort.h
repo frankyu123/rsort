@@ -10,6 +10,7 @@ typedef struct SortData {
 typedef struct SortConfig {
     char *beginTag;
     char *keyTag;
+    int keyPos;
     bool isCutByDelim;
     bool numeric;
     bool reverse;

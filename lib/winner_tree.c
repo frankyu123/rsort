@@ -47,6 +47,25 @@ static char *getSortData(FILE *fin, FILE *fmap)
     return record;
 }
 
+static char *getKeyCol(char *str)
+{
+    char *last = NULL;
+    char *ptr = strstr(str, config->keyTag);
+
+    int cnt = 1;
+    while ((cnt < config->keyPos || config->keyPos == -1) && ptr != NULL) {
+        last = ptr;
+        ptr = strstr(ptr + 1, config->keyTag);
+        ++cnt;
+    }
+
+    if (last != NULL && config->keyPos == -1) {
+        ptr = last;
+    }
+
+    return ptr;
+}
+
 static bool nodeCmp(SortData *left, SortData *right) 
 {
     char *leftPtr, *rightPtr;
@@ -67,22 +86,23 @@ static bool nodeCmp(SortData *left, SortData *right)
             }
         }
     } else {
-        if (strstr(left->record, config->keyTag) == NULL) {
+        char *lptr, *rptr;
+        if ((lptr = getKeyCol(left->record)) == NULL) {
             return (!config->reverse) ? true : false;
-        } else if (strstr(right->record, config->keyTag) == NULL) {
+        } else if ((rptr = getKeyCol(right->record)) == NULL) {
             return (!config->reverse) ? false : true;
         }
 
         if (config->numeric) {
-            long leftNum = strtol(strstr(left->record, config->keyTag), &leftPtr, 10);
-            long rightNum = strtol(strstr(right->record, config->keyTag), &rightPtr, 10);
+            long leftNum = strtol(lptr, &leftPtr, 10);
+            long rightNum = strtol(rptr, &rightPtr, 10);
             if (leftNum > rightNum || (leftNum == rightNum && strcmp(leftPtr, rightPtr) < 0)) {
                 return (!config->reverse) ? true : false; 
             } else {
                 return (!config->reverse) ? false : true;
             }
         } else {
-            if (strcmp(strstr(left->record, config->keyTag), strstr(right->record, config->keyTag)) <= 0) {
+            if (strcmp(lptr, rptr) <= 0) {
                 return (!config->reverse) ? true : false;
             } else {
                 return (!config->reverse) ? false : true;

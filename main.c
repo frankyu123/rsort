@@ -3,7 +3,8 @@
 // @Description : 
 // case -rb             : record begin by specific tag
 // case -d              : split by delimiters and sort
-// case -k              : sort by specific key column
+// case -k{num}         : sort by nth ocurrence of specific key column
+// case -kr             : sort by last occurrence of specific key column
 // case -n              : numerical comparison
 // case -r              : reverse order
 // case -chunk          : number of external chunk
@@ -186,6 +187,7 @@ SortConfig *initSortConfig(int argc, char *argv[])
     SortConfig *config = malloc(sizeof(SortConfig));
     config->beginTag = config->keyTag = NULL;
     config->reverse = config->isCutByDelim = config->numeric = false;
+    config->keyPos = 1;
     config->chunk = 1;
     config->maxFileSize = 1000000000; // Default approx. 1GB
     config->thread = 4;
@@ -197,9 +199,18 @@ SortConfig *initSortConfig(int argc, char *argv[])
             i += 1;
         } else if (strcmp(argv[i], "-d") == 0) {
             config->isCutByDelim = true;
-        } else if (strcmp(argv[i], "-k") == 0) {
+        } else if (strstr(argv[i], "-k") != NULL) {
             config->keyTag = (char *) malloc(30 * sizeof(char));
             strcpy(config->keyTag, argv[i+1]);
+
+            if (strlen(argv[i]) == 3) {
+                if (argv[i][2] == 'r') {
+                    config->keyPos = -1;
+                } else {
+                    config->keyPos = atoi(argv[i] + 2);
+                }
+            }
+
             i += 1;
         } else if (strcmp(argv[i], "-n") == 0) {
             config->numeric = true;
