@@ -1,3 +1,0 @@
-[submodule "tools/segmentor"]
-	path = tools/segmentor
-	url = git@github.com:frankyu123/segmentor.git
