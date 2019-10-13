@@ -18,7 +18,7 @@ typedef struct ThreadArgs {
 } ThreadArgs;
 
 static SortConfig *config;
-static pthread_barrier_t pbt;
+static pthread_barrier_t _pbt;
 static SortData *result;
 static int *idx = NULL;
 
@@ -134,7 +134,7 @@ static void *thread(void *data)
     int low = args->low;
     int high = args->high;
     qsort(idx + low, high - low + 1, sizeof(int), qcmp);
-    pthread_barrier_wait(&pbt);
+    pthread_barrier_wait(&_pbt);
     return NULL;
 }
 
@@ -174,7 +174,7 @@ int *mergeSort(SortData **data, int **originIdx, int size, SortConfig *conf)
     idx = (*originIdx);
 
     pthread_t tids[config->thread];
-    pthread_barrier_init(&pbt, NULL, config->thread + 1);
+    pthread_barrier_init(&_pbt, NULL, config->thread + 1);
 
     // Partition qsort
     for (int i = 0; i < config->thread; i++) {
@@ -186,13 +186,13 @@ int *mergeSort(SortData **data, int **originIdx, int size, SortConfig *conf)
         args->high = (i + 1) * (size - 1) / config->thread;
         pthread_create(&tids[i], NULL, thread, args);
     }
-    pthread_barrier_wait(&pbt);
+    pthread_barrier_wait(&_pbt);
 
     for (int i = 0; i < config->thread; i++) {
         pthread_join(tids[i], NULL);
     }
 
-    pthread_barrier_destroy(&pbt);
+    pthread_barrier_destroy(&_pbt);
 
     // Merge
     for (int i = config->thread / 2; i > 0; i /= 2) {

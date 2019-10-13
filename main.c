@@ -1,6 +1,7 @@
 //***************************************************************************
-// Rsort Command
-// @Description : 
+// Rsort
+// @Author : Frank Yu
+// @Command : 
 // case -rb             : record begin by specific tag
 // case -d              : split by delimiters and sort
 // case -k{num}         : sort by nth ocurrence of specific key column

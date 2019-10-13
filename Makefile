@@ -1,17 +1,15 @@
 RSORTEXE = rsort
-SEGEXE = seg
-SEGDIR = tools/segmentor
+UNAME = $(shell uname -s)
 
 build:
-ifeq ($(OS), Darwin)
-	gcc -pthread main.c lib/mergesort.c lib/winner_tree.c -o $(RSORTEXE)
-else
+ifeq ($(UNAME), Darwin)
 	gcc main.c lib/mergesort.c lib/winner_tree.c -o $(RSORTEXE)
+else
+	gcc -pthread main.c lib/mergesort.c lib/winner_tree.c -o $(RSORTEXE)
 endif
-	cd $(SEGDIR) && make
 
-test:
-	./$(RSORTEXE) -chunk 4 -s 5000000 ../../../tcount/result.rec > result.rec
+run:
+	./$(RSORTEXE) -chunk 4 -s 100000000 -kr ' ' -n ../tcount/result.rec > result.rec
 
 clean:
 ifeq ($(RSORTEXE), $(wildcard $(RSORTEXE)))
@@ -21,4 +19,3 @@ endif
 ifeq ($(RSORTEXE).dSYM, $(wildcard $(RSORTEXE).dSYM))
 	rm -rf $(RSORTEXE).dSYM
 endif
-	cd $(SEGDIR) && make clean
