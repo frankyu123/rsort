@@ -44,10 +44,8 @@ int main(int argc, char *argv[])
         }
     }
 
-    int size = _DEFAULT_BUFFER_SIZE;
     int maxInputBufferSize = _DEFAULT_BUFFER_SIZE;
     int maxRecordBufferSize = _DEFAULT_BUFFER_SIZE;
-
     char *inputBuffer = (char *) malloc(_DEFAULT_BUFFER_SIZE * sizeof(char));
     char *tmpInputBuffer = (char *) malloc(_DEFAULT_BUFFER_SIZE * sizeof(char));
     strcpy(tmpInputBuffer, "\0");
@@ -56,6 +54,7 @@ int main(int argc, char *argv[])
     strcpy(tmpRecordBeginBuffer, "\0");
 
     // Parser
+    int size = _DEFAULT_BUFFER_SIZE;
     SortData *data = malloc(size * sizeof(SortData));
     int count = 0, memUsed = 0;
     while (fgets(inputBuffer, _DEFAULT_BUFFER_SIZE, fin) != NULL) {
@@ -190,7 +189,7 @@ SortConfig *initSortConfig(int argc, char *argv[])
     config->reverse = config->isCutByDelim = config->numeric = false;
     config->keyPos = 1;
     config->chunk = 1;
-    config->maxFileSize = 1000000000; // Default approx. 1GB
+    config->maxFileSize = 500000000; // Default approx. 500MB
     config->thread = 4;
 
     for (int i = 0; i < argc; i++) {
@@ -229,8 +228,8 @@ SortConfig *initSortConfig(int argc, char *argv[])
         }
     }
 
-    if (config->thread < 2) {
-        config->thread = 2;
+    if (config->thread < 1) {
+        config->thread = 1;
     }
 
     return config;
