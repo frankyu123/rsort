@@ -1,15 +1,23 @@
+/**
+ * mergesort.c - implement internal mergesort
+ * 
+ * Author: Frank Yu <frank85515@gmail.com>
+ * 
+ * (C) Copyright 2019 Frank Yu
+ */
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-#include "mergesort.h"
+#include <mergesort.h>
 
 #ifdef __linux__
 #include <pthread.h>
 #endif
 
 #ifdef __APPLE__
-#include "pthread_barrier.h"
+#include <pthread_barrier.h>
 #endif
 
 typedef struct ThreadArgs {
@@ -19,9 +27,16 @@ typedef struct ThreadArgs {
 
 static SortConfig *config;
 static pthread_barrier_t _pbt;
-static SortData *result;
-static int *idx = NULL;
+static SortData *result; // global pointer to unsorted data
+static int *idx = NULL; // global pointer to idx list
 
+/**
+ * getKeyCol - obtain nth occurence of specific key column in giving string
+ * @str: string
+ * Returns 
+ *       pointer to nth occurrence of specific key column in string
+ *       or NULL for not found
+ */
 static char *getKeyCol(char *str)
 {
     char *last = NULL;
@@ -41,6 +56,12 @@ static char *getKeyCol(char *str)
     return ptr;
 }
 
+/**
+ * qcmp - comparsion function for qsort
+ * @a: left record
+ * @b: right record
+ * Returns <= 0 for a <= b or > 0 for a > b.
+ */
 static int qcmp(const void *a,const void *b)
 {
     int leftIdx = *(int *) a, rightIdx = *(int *) b;
@@ -83,6 +104,12 @@ static int qcmp(const void *a,const void *b)
     }
 }
 
+/**
+ * mcmp - comparsion function for merge
+ * @leftPos: idx for left record 
+ * @rightPos: idx for right record
+ * Returns true for left record <＝ right record or false for left record > right record.
+ */
 static bool mcmp(int leftPos, int rightPos)
 {
     char *leftPtr, *rightPtr;
@@ -90,7 +117,7 @@ static bool mcmp(int leftPos, int rightPos)
         if (config->numeric) {
             long leftNum = strtol(result[idx[leftPos]].record, &leftPtr, 10);
             long rightNum = strtol(result[idx[rightPos]].record, &rightPtr, 10);
-            if (leftNum > rightNum || (leftNum == rightNum && strcmp(leftPtr, rightPtr) < 0)) {
+            if (leftNum > rightNum || (leftNum == rightNum && strcmp(leftPtr, rightPtr) <= 0)) {
                 return (!config->reverse) ? true : false; 
             } else {
                 return (!config->reverse) ? false : true;
@@ -113,7 +140,7 @@ static bool mcmp(int leftPos, int rightPos)
         if (config->numeric) {
             long leftNum = strtol(lptr, &leftPtr, 10);
             long rightNum = strtol(rptr, &rightPtr, 10);
-            if (leftNum > rightNum || (leftNum == rightNum && strcmp(leftPtr, rightPtr) < 0)) {
+            if (leftNum > rightNum || (leftNum == rightNum && strcmp(leftPtr, rightPtr) <= 0)) {
                 return (!config->reverse) ? true : false; 
             } else {
                 return (!config->reverse) ? false :true;
@@ -128,7 +155,12 @@ static bool mcmp(int leftPos, int rightPos)
     }
 }
 
-static void *thread(void *data)
+/**
+ * job - pthread job for doing internal qsort
+ * @low: begin idx for each unsorted segment
+ * @hight: last idx for each unsorted segment
+ */
+static void *job(void *data)
 {
     ThreadArgs *args = (ThreadArgs *) data;
     int low = args->low;
@@ -167,6 +199,14 @@ static void merge(int low, int mid, int high)
     free(tmp);
 }
 
+/**
+ * mergeSort - main function for internal mergesort
+ * @data: a pointer to unsorted data 
+ * @originIdx: a pointer to idx list of unsorted data
+ * @size: size for unsorted data
+ * @conf: sort config
+ * Returns idx list of sorted data.
+ */
 int *mergeSort(SortData **data, int **originIdx, int size, SortConfig *conf)
 {
     config = conf;
@@ -184,7 +224,7 @@ int *mergeSort(SortData **data, int **originIdx, int size, SortConfig *conf)
             args->low += 1;
         }
         args->high = (i + 1) * (size - 1) / config->thread;
-        pthread_create(&tids[i], NULL, thread, args);
+        pthread_create(&tids[i], NULL, job, args);
     }
     pthread_barrier_wait(&_pbt);
 
@@ -208,5 +248,7 @@ int *mergeSort(SortData **data, int **originIdx, int size, SortConfig *conf)
         }
     }
 
+    result = NULL;
+    free(result);
     return idx;
 }

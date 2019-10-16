@@ -1,19 +1,17 @@
-//***************************************************************************
-// Rsort
-// @Author : Frank Yu
-// @Command : 
-// case -rb             : record begin by specific tag
-// case -d              : split by delimiters and sort
-// case -k{num}         : sort by nth ocurrence of specific key column
-// case -kr             : sort by last occurrence of specific key column
-// case -n              : numerical comparison
-// case -r              : reverse order
-// case -chunk          : number of external chunk
-// case -s              : limit file size (byte)
-// case -parallel       : number of threads using in sort
-//***************************************************************************
+/**
+ * rsort.c - main driver file for rsort
+ * 
+ * Author: Frank Yu <frank85515@gmail.com>
+ * 
+ * (C) Copyright 2019 Frank Yu
+ * 
+ * External mergesort
+ * 1) parse texts by giving OPTION
+ * 2) split files in N size (-s OPTION) and sort (internal mergesort)
+ * 3) merge M files with K chunks (winner tree)
+ */
 
-#include "main.h"
+#include <rsort.h>
 
 #define _DEFAULT_BUFFER_SIZE 1024
 #define _SPLIT_FILE "split_text"
@@ -179,38 +177,43 @@ int main(int argc, char *argv[])
         remove(_TERM_FILE);
     }
 
+    if (config->beginTag != NULL) {
+        free(config->beginTag);
+    }
+
+    if (config->keyTag != NULL) {
+        free(config->keyTag);
+    }
+
+    if (config->output != NULL) {
+        free(config->output);
+    }
+
+    free(config);
     return 0;
 }
 
 SortConfig *initSortConfig(int argc, char *argv[])
 {
     SortConfig *config = malloc(sizeof(SortConfig));
-    config->beginTag = config->keyTag = NULL;
+    config->beginTag = config->keyTag = config->output = NULL;
     config->reverse = config->isCutByDelim = config->numeric = false;
     config->keyPos = 1;
-    config->chunk = 1;
+    config->chunk = 4;
     config->maxFileSize = 500000000; // Default approx. 500MB
     config->thread = 4;
 
     for (int i = 0; i < argc; i++) {
         if (strcmp(argv[i], "-rb") == 0) {
-            config->beginTag = (char *) malloc(30 * sizeof(char));
-            strcpy(config->beginTag, argv[i+1]);
+            config->beginTag = strdup(argv[i+1]);
             i += 1;
         } else if (strcmp(argv[i], "-d") == 0) {
             config->isCutByDelim = true;
         } else if (strstr(argv[i], "-k") != NULL) {
-            config->keyTag = (char *) malloc(30 * sizeof(char));
-            strcpy(config->keyTag, argv[i+1]);
-
+            config->keyTag = strdup(argv[i+1]);
             if (strlen(argv[i]) == 3) {
-                if (argv[i][2] == 'r') {
-                    config->keyPos = -1;
-                } else {
-                    config->keyPos = atoi(argv[i] + 2);
-                }
+                config->keyPos = (argv[i][2] == 'r') ? -1 : atoi(argv[i] + 2);
             }
-
             i += 1;
         } else if (strcmp(argv[i], "-n") == 0) {
             config->numeric = true;
@@ -225,6 +228,11 @@ SortConfig *initSortConfig(int argc, char *argv[])
         } else if (strcmp(argv[i], "-parallel") == 0) {
             config->thread = atoi(argv[i+1]);
             i += 1;
+        } else if (strcmp(argv[i], "--help") == 0) {
+            usage();
+        } else if (strcmp(argv[i], "-o") == 0) {
+            config->output = strdup(argv[i+1]);
+            i += 1;
         }
     }
 
@@ -232,9 +240,19 @@ SortConfig *initSortConfig(int argc, char *argv[])
         config->thread = 1;
     }
 
+    if (config->chunk < 2) {
+        config->chunk = 2;
+    }
+
     return config;
 }
 
+/**
+ * splitKFile - main function for splitting file in specifice file size
+ * @data: pointer to unsorted data
+ * @size: total idx of unsorted data
+ * @config: sort config
+ */
 void splitKFile(SortData **data, int size, SortConfig *config)
 {
     ++_fileNum;
@@ -259,4 +277,25 @@ void splitKFile(SortData **data, int size, SortConfig *config)
     fclose(fout);
     fclose(fmap);
     free(idx);
+}
+
+void usage()
+{
+    printf("Usage: rsort [OPTION]... [FILE]...\n");
+    printf("Sort giving FILE by OPTION.\n");
+    printf("Example: ./rsort -rb @GAISRec: text.txt\n\nCommand:\n");
+    printf ("\
+  -rb               obtain record begin by specific tag\n\
+  -d                split giving FILE by delimiters and sort\n\
+  -k{num}           sort by nth ocurrence of specific key column\n\
+  -kr               sort by last occurrence of specific key column\n\
+  -n                sort by numerical comparison\n\
+  -r                output result in reverse order\n\
+  -chunk            number of external chunks using in merge\n\
+  -s                limit file size (byte)\n\
+  -parallel         number of threads needed\n\
+  -o                output in specific file\n\
+  --help            show rsort information\n\n");
+
+  exit(0);
 }

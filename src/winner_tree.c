@@ -1,15 +1,23 @@
+/**
+ * winner_tree.c - implement winner tree for merging multiple split files
+ * 
+ * Author: Frank Yu <frank85515@gmail.com>
+ * 
+ * (C) Copyright 2019 Frank Yu
+ */
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-#include "winner_tree.h"
+#include <winner_tree.h>
 
 #ifdef __linux__
 #include <pthread.h>
 #endif
 
 #ifdef __APPLE__
-#include "pthread_barrier.h"
+#include <pthread_barrier.h>
 #endif
 
 #define _WINNER_TREE_SPLIT_FILE "split_text"
@@ -20,16 +28,16 @@ typedef struct ThreadArgs {
     int newFileNo;
 } ThreadArgs;
 
-typedef struct WinnerTree {
-    int *nodeList;
-    SortData *nodeValue;
-} WinnerTree;
-
-static int _fileNum;
 static SortConfig *config;
-static int _nodeNum = 1;
+static int _nodeNum = 1; // total nodes in winner tree
 static pthread_barrier_t _pbt;
 
+/**
+ * getSortData - get data from split file
+ * @fin: file pointer to specific split file
+ * @fmap: file pointer to offset file of specific split file
+ * Returns string or NULL for EOF or passing empty file pointer
+ */
 static char *getSortData(FILE *fin, FILE *fmap)
 {
     char *record = NULL;
@@ -47,6 +55,13 @@ static char *getSortData(FILE *fin, FILE *fmap)
     return record;
 }
 
+/**
+ * getKeyCol - obtain nth occurence of specific key column in giving string
+ * @str: string
+ * Returns 
+ *       pointer to nth occurrence of specific key column in string
+ *       or NULL for not found
+ */
 static char *getKeyCol(char *str)
 {
     char *last = NULL;
@@ -73,7 +88,7 @@ static bool nodeCmp(SortData *left, SortData *right)
         if (config->numeric) {
             long leftNum = strtol(left->record, &leftPtr, 10);
             long rightNum = strtol(right->record, &rightPtr, 10);
-            if (leftNum > rightNum || (leftNum == rightNum && strcmp(leftPtr, rightPtr) < 0)) {
+            if (leftNum > rightNum || (leftNum == rightNum && strcmp(leftPtr, rightPtr) <= 0)) {
                 return (!config->reverse) ? true : false; 
             } else {
                 return (!config->reverse) ? false : true;
@@ -96,7 +111,7 @@ static bool nodeCmp(SortData *left, SortData *right)
         if (config->numeric) {
             long leftNum = strtol(lptr, &leftPtr, 10);
             long rightNum = strtol(rptr, &rightPtr, 10);
-            if (leftNum > rightNum || (leftNum == rightNum && strcmp(leftPtr, rightPtr) < 0)) {
+            if (leftNum > rightNum || (leftNum == rightNum && strcmp(leftPtr, rightPtr) <= 0)) {
                 return (!config->reverse) ? true : false; 
             } else {
                 return (!config->reverse) ? false : true;
@@ -189,6 +204,11 @@ static void updateWinnerTree(WinnerTree *tree, int nodeIdx, int updateIdx, FILE 
 	}
 }
 
+/**
+ * job - pthread job for merging N (number of chunk) split files
+ * @endIdx: last idx of split file in each thread task
+ * @newFileNo: file no. of new split file & offset file
+ */
 static void *job(void *argv)
 {
     ThreadArgs *args = (ThreadArgs *) argv;
@@ -242,6 +262,11 @@ static void *job(void *argv)
     return NULL;
 }
 
+/**
+ * mergeKFile - main function for merge M (fileNum) split files
+ * @fileNum: total split files
+ * @conf: sort config
+ */
 void mergeKFile(int fileNum, SortConfig *conf)
 {
     config = conf;
@@ -253,7 +278,6 @@ void mergeKFile(int fileNum, SortConfig *conf)
     int cnt = 0;
     while (fileNum - cnt > config->chunk) {
         int threadNum = (fileNum - cnt) / config->chunk;
-
         if (threadNum > config->thread) {
             threadNum = config->thread;
         }
@@ -285,7 +309,13 @@ void mergeKFile(int fileNum, SortConfig *conf)
         fin[i] = fopen(splitFile, "r");
         fmap[i] = fopen(offsetFile, "r");
     }
-    FILE *fout = stdout;
+
+    FILE *fout;
+    if (config->output != NULL) {
+        fout = fopen(config->output, "w");
+    } else {
+        fout = stdout;
+    }
 
     WinnerTree *tree = malloc(sizeof(WinnerTree));
     tree->nodeValue = (SortData *) malloc(config->chunk * sizeof(SortData));

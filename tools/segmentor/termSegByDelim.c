@@ -6,22 +6,21 @@ char8 *DelimPat[] = {", ", "- ", "ft.", "feat.", " (", ") "};
 char8 Delim1[] = "+$@#*'!_`~\t\n:;?,[]{}()|=\"";
 char8 Delim3[] = "“〔（《【「『”〕」）》】』∥├◤◇│↘◢█◆‧※◎　■★•→＃％［］＼：＜＞－＊＋（）●＆｜～▲？，。；：／、！．▼";
 
-int	DelimSym[256]; 
+int DelimSym[256]; 
 char8 *HTab[HTabSize]; 
 
-int	isDelim(char8 *); 
+int isDelim(char8 *); 
 char8 *getU8Ch(char8 *, char8 *);
 
 char8 *HTab[HTabSize]; 
 
 // use a simple string polynomial function, where the radix
 // value is chosen to be 65 which can be computed by one shift plus one plus operation
-
 uint hash65(char8 *pat)
 {
 	int32 hash;
 	char8 *ptr;
-	int	c;
+	int c;
 
 	ptr = pat;
 
@@ -33,7 +32,6 @@ uint hash65(char8 *pat)
 }
 
 // use Open Addressing HTab
-
 void insertH(char8 *Ch)
 {
 	int32 hv, i; 
@@ -47,7 +45,7 @@ void insertH(char8 *Ch)
 	HTab[i] = strdup(Ch);
 }
 	
-int	findH(char8 *Ch)
+int findH(char8 *Ch)
 {
 	int32 hv, i;
 	hv = hash65(Ch) % HTabSize;
@@ -66,7 +64,7 @@ int	findH(char8 *Ch)
 
 void DelimSymInit()
 {
-	int	i, c, len; 
+	int i, c, len; 
 	for (i = 0; i < 256; i++) {
 		DelimSym[i] = 0; 
 	}
@@ -83,10 +81,9 @@ void DelimSymInit()
 }
 
 // Chinese delimiter characters 
-
 void Delim3Init()
 {
-	int	i, j;
+	int i, j;
 	char8 Ch[8], *ptr;
 	for (i = 0; i < HTabSize; i++) {
 		HTab[i] = NULL;
@@ -98,21 +95,21 @@ void Delim3Init()
 	}
 }
 
-int	isDelim3(char8 *Ch)
+int isDelim3(char8 *Ch)
 {
 	if (findH(Ch)) return 1; 
 	return 0; 
 }
 
-int	isDelim1(char8 *Ch)
+int isDelim1(char8 *Ch)
 {
 	if (strstr(Delim1, Ch)) return 1;
 	return 0;
 }
 
-int	isDelim(char8 *Ch)
+int isDelim(char8 *Ch)
 {
-	int	len = strlen(Ch);
+	int len = strlen(Ch);
 	if (len == 3) {
 		return isDelim3(Ch); 
 	} else {
@@ -122,7 +119,7 @@ int	isDelim(char8 *Ch)
 
 void U8LenInit(int *u8Len)
 {
-	int	c; 
+	int c; 
 	for(c=0; c<256; c++) {
 		if(c > 240) {
 			u8Len[c] = 4; 
@@ -145,7 +142,6 @@ void U8LenInit(int *u8Len)
 // given a UTF8 text string get a chararcter from head and store it in Ch[];
 // return the position after the extracted character
 // we assume that the UTF8 text string is a good text string without broken code
-
 char8 *getU8Ch(char8 *text, char8 Ch[])
 {
 	char8 *ptr, *qtr; 
@@ -177,12 +173,11 @@ char8 *getU8Ch(char8 *text, char8 Ch[])
 // a term can be a CJK term or spelling-based term like English 
 // a term a consecutive characters delimitted by a delimiter, 
 // we will have two delimiter strings in isDelim() function
-
 char8 *getUTerm(char8 *text, char8 *term, bool isShowDelim)
 {
 	char8 *ptr, *qtr;
 	char8 Ch[10];
-	int	len;
+	int len;
 	qtr = term;
 	ptr = text;
 
@@ -247,9 +242,9 @@ char8 *getUTerm(char8 *text, char8 *term, bool isShowDelim)
 	}
 }
 
-int	getSubterms(char8 *text, char8 **subterms)
+int getSubterms(char8 *text, char8 **subterms)
 {
-	int	i, j, k, tdx = 0; 
+	int i, j, k, tdx = 0; 
 	char8 *ptr, *qtr; 
 	char pt[] = ". ", *token, *lastptr; 
 
@@ -302,7 +297,7 @@ void main(int argc, char **argv)
 {
 	char8 line[MaxLine], term[MaxLine];
 	char8 *ptr, *subterms[256];
-	int	len, cnt, limitLen = INT_MAX;
+	int len, cnt, limitLen = INT_MAX;
 	bool isShowDelim = false;
 	
 	DelimSymInit();

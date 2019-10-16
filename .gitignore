@@ -1,7 +1,5 @@
 rsort
 seg
-result*
-diff*
 split_text_*
 offset_*
 term.rec

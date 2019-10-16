@@ -5,14 +5,14 @@ UNAME = $(shell uname -s)
 
 build:
 ifeq ($(UNAME), Darwin)
-	gcc main.c lib/mergesort.c lib/winner_tree.c -o $(RSORTEXE)
+	gcc -Iinclude src/rsort.c src/mergesort.c src/winner_tree.c -o $(RSORTEXE)
 else
-	gcc -pthread main.c lib/mergesort.c lib/winner_tree.c -o $(RSORTEXE)
+	gcc -Iinclude -pthread src/rsort.c src/mergesort.c src/winner_tree.c -o $(RSORTEXE)
 endif
 	gcc $(SEGDIR)/termSegByDelim.c -o $(SEGDIR)/$(SEGEXE)
 
 run:
-	./$(RSORTEXE) -chunk 4 -s 100000000 -kr ' ' -n ../tcount/result.rec > result.rec
+	./$(RSORTEXE) -kr ' ' -n ../dataset/large_term_list_verify.rec > result.rec
 
 clean:
 ifeq ($(RSORTEXE), $(wildcard $(RSORTEXE)))
