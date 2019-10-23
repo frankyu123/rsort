@@ -12,7 +12,7 @@ endif
 	gcc $(SEGDIR)/termSegByDelim.c -o $(SEGDIR)/$(SEGEXE)
 
 run:
-	./$(RSORTEXE) -kr ' ' -n ../dataset/large_term_list_verify.rec > result.rec
+	./$(RSORTEXE) -rb @Gais_REC: -k @url: ../dataset/ettoday_2G.rec > result.txt
 
 clean:
 ifeq ($(RSORTEXE), $(wildcard $(RSORTEXE)))

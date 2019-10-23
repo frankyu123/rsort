@@ -18,27 +18,29 @@
 #define _OFFSET_FILE "offset"
 #define _TERM_FILE "term.rec"
 
-static int _fileNum = 0;
+int _fileNum = 0;
 
 int main(int argc, char *argv[])
 {
     SortConfig *config = initSortConfig(argc, argv);
 
     FILE *fin;
+    fin = fopen(config->input, "r");
+    if (fin == NULL) {
+        fprintf(stderr, "Error: file not found\n");
+        exit(0);
+    }
+
     if (config->isCutByDelim) {
         if (access("./tools/segmentor/seg", F_OK) != 0) {
             fprintf(stderr, "Please compile tools/segmentor first\n");
             exit(0);
         } else {
+            fclose(fin);
             char cmd[300];
             sprintf(cmd, "./tools/segmentor/seg < %s > %s", argv[argc-1], _TERM_FILE);
             system(cmd);
             fin = fopen(_TERM_FILE, "r");
-        }
-    } else {
-        fin = fopen(argv[argc-1], "r");
-        if (argc == 1 || fin == NULL) {
-            fin = stdin;
         }
     }
 
@@ -167,7 +169,7 @@ int main(int argc, char *argv[])
 
     // Merge
     if (_fileNum == 0) {
-        fprintf(stderr, "Error fgets or file is empty\n");
+        fprintf(stderr, "Error: record not found\nPlease check -rb option\n");
         exit(0);
     } else {
         mergeKFile(_fileNum, config);
@@ -185,6 +187,10 @@ int main(int argc, char *argv[])
         free(config->keyTag);
     }
 
+    if (config->input != NULL) {
+        free(config->input);
+    }
+
     if (config->output != NULL) {
         free(config->output);
     }
@@ -195,8 +201,13 @@ int main(int argc, char *argv[])
 
 SortConfig *initSortConfig(int argc, char *argv[])
 {
+    if (argc == 1) {
+        fprintf(stderr, "Error: missing arguments\n");
+        exit(0);
+    }
+
     SortConfig *config = malloc(sizeof(SortConfig));
-    config->beginTag = config->keyTag = config->output = NULL;
+    config->beginTag = config->keyTag = config->output = config->input = NULL;
     config->reverse = config->isCutByDelim = config->numeric = false;
     config->keyPos = 1;
     config->chunk = 4;
@@ -204,36 +215,56 @@ SortConfig *initSortConfig(int argc, char *argv[])
     config->thread = 4;
 
     for (int i = 0; i < argc; i++) {
+        bool flag = false;
+
         if (strcmp(argv[i], "-rb") == 0) {
             config->beginTag = strdup(argv[i+1]);
             i += 1;
+            flag = true;
         } else if (strcmp(argv[i], "-d") == 0) {
             config->isCutByDelim = true;
+            flag = true;
         } else if (strstr(argv[i], "-k") != NULL) {
             config->keyTag = strdup(argv[i+1]);
             if (strlen(argv[i]) == 3) {
                 config->keyPos = (argv[i][2] == 'r') ? -1 : atoi(argv[i] + 2);
             }
             i += 1;
+            flag = true;
         } else if (strcmp(argv[i], "-n") == 0) {
             config->numeric = true;
+            flag = true;
         } else if (strcmp(argv[i], "-r") == 0) {
             config->reverse = true;
+            flag = true;
         } else if (strcmp(argv[i], "-chunk") == 0) {
             config->chunk = atoi(argv[i+1]);
             i += 1;
+            flag = true;
         } else if (strcmp(argv[i], "-s") == 0) {
             config->maxFileSize = atoi(argv[i+1]);
             i += 1;
+            flag = true;
         } else if (strcmp(argv[i], "-parallel") == 0) {
             config->thread = atoi(argv[i+1]);
             i += 1;
+            flag = true;
         } else if (strcmp(argv[i], "--help") == 0) {
             usage();
         } else if (strcmp(argv[i], "-o") == 0) {
             config->output = strdup(argv[i+1]);
             i += 1;
+            flag = true;
         }
+
+        if (!flag && i == argc - 1) {
+            config->input = strdup(argv[i]);
+        }
+    }
+
+    if (config->input == NULL) {
+        fprintf(stderr, "Error: missing input file\n");
+        exit(0);
     }
 
     if (config->thread < 1) {

@@ -8,9 +8,10 @@ typedef struct SortData {
 } SortData;
 
 typedef struct SortConfig {
+    char *output;
+    char *input;
     char *beginTag;
     char *keyTag;
-    char *output;
     int keyPos;
     bool isCutByDelim;
     bool numeric;

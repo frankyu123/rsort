@@ -2,7 +2,6 @@
 
 #define HTabSize 571
 
-char8 *DelimPat[] = {", ", "- ", "ft.", "feat.", " (", ") "};
 char8 Delim1[] = "+$@#*'!_`~\t\n:;?,[]{}()|=\"";
 char8 Delim3[] = "“〔（《【「『”〕」）》】』∥├◤◇│↘◢█◆‧※◎　■★•→＃％［］＼：＜＞－＊＋（）●＆｜～▲？，。；：／、！．▼";
 
@@ -42,7 +41,7 @@ void insertH(char8 *Ch)
 		i = (i + 1) % HTabSize;
 	}
 
-	HTab[i] = strdup(Ch);
+	HTab[i] = (char8 *) strdup((char *)Ch);
 }
 	
 int findH(char8 *Ch)
@@ -52,7 +51,7 @@ int findH(char8 *Ch)
 	i = hv;
 
 	while (HTab[i] != NULL) {
-		if (strcmp(HTab[i], Ch) == 0) {
+		if (strcmp((char *)HTab[i], (char *)Ch) == 0) {
 			return 1;
 		} else {
 			i = (i + 1) % HTabSize;
@@ -73,7 +72,7 @@ void DelimSymInit()
 		DelimSym[i] = 1; 
 	}
 
-	len = strlen(Delim1);
+	len = strlen((char *)Delim1);
 	for (i = 0; i < len; i++) {
 		c = Delim1[i]; 
 		DelimSym[c] = 1; 
@@ -90,7 +89,7 @@ void Delim3Init()
 	}
 
 	ptr = Delim3; 
-	while(ptr = getU8Ch(ptr, Ch)) {
+	while((ptr = getU8Ch(ptr, Ch))) {
 		insertH(Ch);
 	}
 }
@@ -103,13 +102,13 @@ int isDelim3(char8 *Ch)
 
 int isDelim1(char8 *Ch)
 {
-	if (strstr(Delim1, Ch)) return 1;
+	if (strstr((char *)Delim1, (char *)Ch)) return 1;
 	return 0;
 }
 
 int isDelim(char8 *Ch)
 {
-	int len = strlen(Ch);
+	int len = strlen((char *)Ch);
 	if (len == 3) {
 		return isDelim3(Ch); 
 	} else {
@@ -193,21 +192,21 @@ char8 *getUTerm(char8 *text, char8 *term, bool isShowDelim)
 	ptr = getU8Ch(ptr, Ch);
 	if (isDelim(Ch)) {
 		if (isShowDelim) {
-			strcpy(term, Ch);
+			strcpy((char *)term, (char *)Ch);
 		} else {
 			*term = '\0';
 		}
 		return ptr;
 	}
 
-	len = strlen(Ch);
+	len = strlen((char *)Ch);
 	if(len == 3) {	// CJK
 		*qtr++ = Ch[0];
 		*qtr++ = Ch[1];
 		*qtr++ = Ch[2];
 		while (len == 3)  {
 			ptr = getU8Ch(ptr, Ch);
-			len = strlen(Ch); 
+			len = strlen((char *)Ch); 
 			if (len < 3) {
 				ptr = ptr - len;
 				*qtr = '\0';
@@ -240,29 +239,31 @@ char8 *getUTerm(char8 *text, char8 *term, bool isShowDelim)
 		*qtr = '\0';
 		return ptr;
 	}
+
+	return NULL;
 }
 
 int getSubterms(char8 *text, char8 **subterms)
 {
 	int i, j, k, tdx = 0; 
-	char8 *ptr, *qtr; 
-	char pt[] = ". ", *token, *lastptr; 
+	char8 *ptr, *qtr, *lastptr; 
+	char pt[] = ". ", *token; 
 
 	ptr = text;
 	while (*ptr == '/' || *ptr == '.') {
 		ptr++;
 	}
 
-	if (strchr(text, '/')) {
-		token = strtok(ptr, "/");
+	if (strchr((char *)text, '/')) {
+		token = strtok((char *)ptr, "/");
 		while (token != NULL) {
-			subterms[tdx] = token;
+			subterms[tdx] = (char8 *) token;
 			tdx++; 
 			token = strtok(NULL, "/") ; 
 		}
 	} else {
 		lastptr = ptr;
-		while (ptr = strchr(ptr, '.')) {
+		while ((ptr = (char8 *) strchr((char *)ptr, '.'))) {
 			ptr++;
 			if ((*ptr == ' ') || (*ptr == '\0')) {
 				*(ptr-1) = '\0';
@@ -293,7 +294,7 @@ void usage()
 	exit(1); 
 }
 
-void main(int argc, char **argv)
+int main(int argc, char **argv)
 {
 	char8 line[MaxLine], term[MaxLine];
 	char8 *ptr, *subterms[256];
@@ -316,13 +317,13 @@ void main(int argc, char **argv)
 		}
 	}
 
-	while (fgets(line, MaxLine, stdin)) {
+	while (fgets((char *)line, MaxLine, stdin)) {
 		ptr = line; 
 		while (ptr) {
 			ptr = getUTerm(ptr, term, isShowDelim);
 
 			if (ptr) {
-				if (strlen(term) > 0 && !isspace(term[0]) && strlen(term) < limitLen) { 
+				if (strlen((char *)term) > 0 && !isspace(term[0]) && strlen((char *)term) < limitLen) { 
 					printf("%s\n", term);
 				} 
 			}
@@ -331,11 +332,13 @@ void main(int argc, char **argv)
 				cnt = getSubterms(term, subterms); 
 				if (cnt <= 1) continue; 
 				for (int i = 0; i < cnt; i++)  {
-					if (strlen(subterms[i]) < limitLen) {
+					if (strlen((char *)subterms[i]) < limitLen) {
 						printf("%s\n", subterms[i]);
 					}
 				}
 			}
 		}
 	}
+
+	return 0;
 }
