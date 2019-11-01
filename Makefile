@@ -12,7 +12,7 @@ endif
 	gcc $(SEGDIR)/termSegByDelim.c -o $(SEGDIR)/$(SEGEXE)
 
 run:
-	./$(RSORTEXE) -chunk 8 -o test.txt ../tcount/result.txt
+	./$(RSORTEXE) -chunk 8 -o test.txt ../dataset/ettoday_2G.rec
 
 clean:
 ifeq ($(RSORTEXE), $(wildcard $(RSORTEXE)))

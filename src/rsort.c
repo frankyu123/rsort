@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
             } else {
                 bool findRecord = false;
                 char *ptr = tmpInputBuffer, *rbPtr;
-                while ((rbPtr = strstr(ptr, config->beginTag)) != NULL) {
+                if ((rbPtr = strstr(ptr, config->beginTag)) != NULL) {
                     if (strcmp(tmpRecordBeginBuffer, "\0") == 0) {
                         if (maxRecordBufferSize <= strlen(tmpRecordBeginBuffer) + strlen(rbPtr)) {
                             maxRecordBufferSize = strlen(tmpRecordBeginBuffer) + strlen(rbPtr) + _BUFFER_SIZE;
@@ -125,7 +125,6 @@ int main(int argc, char *argv[])
                         strcpy(tmpRecordBeginBuffer, rbPtr);
                     }
                     findRecord = true;
-                    ptr = (rbPtr + strlen(config-> beginTag));
                 }
 
                 if (!findRecord && strcmp(tmpRecordBeginBuffer, "\0") != 0) {

@@ -37,3 +37,24 @@ make run
 | **-o** | output in specific file | -o result.rec |
 | **-u** | remove duplicate records | -u result.rec |
 | **--help** | show rsort information | --help |
+
+## Benchmark
+This experiment using 4 threads, 8 chunks and limit 500 MB for each split texts.
+
+**Environment**
+* CPU - 2.3 GHz 2 Core Intel Core i5
+* MEM - 8 GB 2133 MHz LPDDR3
+
+**17G YouTube data**
+
+| Command | Total Records | Time | Max Memory Usage |
+| ---             | ---   | ---       | ---       |
+| ./rsort -chunk 8 [FILE] | 577214559 records | 30 - 33 min | 1.1 - 1.2 GB |
+| ./rsort -chunk 8 -rb @url: [FILE] | 79117015 records | 9 - 11 min | 500 - 600 MB |
+
+**16G ETtoday data ( cat 2G data to 16G )**
+
+| Command | Total Records | Time | Max Memory Usage |
+| ---             | ---   | ---       | ---       |
+| ./rsort -chunk 8 [FILE] | 159999952 records | 9 - 11 min | 700 - 800 MB |
+| ./rsort -chunk 8 -rb @Gais_REC: [FILE] | 6638304 records | 4 - 5 min | 500 - 600 MB |
