@@ -35,4 +35,5 @@ make run
 | **-s** | limit file size (byte) | -s 200000000 |
 | **-parallel** | number of threads needed | -parallel 4 |
 | **-o** | output in specific file | -o result.rec |
+| **-u** | remove duplicate records | -u result.rec |
 | **--help** | show rsort information | --help |

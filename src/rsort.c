@@ -13,7 +13,7 @@
 
 #include <rsort.h>
 
-#define _DEFAULT_BUFFER_SIZE 1024
+#define _BUFFER_SIZE 1024
 #define _SPLIT_FILE "split_text"
 #define _OFFSET_FILE "offset"
 #define _TERM_FILE "term.rec"
@@ -22,19 +22,19 @@ int _fileNum = 0;
 
 int main(int argc, char *argv[])
 {
-    SortConfig *config = initSortConfig(argc, argv);
+    RsortConfig *config = initRsortConfig(argc, argv);
 
     FILE *fin;
     fin = fopen(config->input, "r");
     if (fin == NULL) {
         fprintf(stderr, "Error: file not found\n");
-        exit(0);
+        exit(2);
     }
 
     if (config->isCutByDelim) {
         if (access("./tools/segmentor/seg", F_OK) != 0) {
             fprintf(stderr, "Please compile tools/segmentor first\n");
-            exit(0);
+            exit(2);
         } else {
             fclose(fin);
             char cmd[300];
@@ -44,22 +44,22 @@ int main(int argc, char *argv[])
         }
     }
 
-    int maxInputBufferSize = _DEFAULT_BUFFER_SIZE;
-    int maxRecordBufferSize = _DEFAULT_BUFFER_SIZE;
-    char *inputBuffer = (char *) malloc(_DEFAULT_BUFFER_SIZE * sizeof(char));
-    char *tmpInputBuffer = (char *) malloc(_DEFAULT_BUFFER_SIZE * sizeof(char));
+    int maxInputBufferSize = _BUFFER_SIZE;
+    int maxRecordBufferSize = _BUFFER_SIZE;
+    char *inputBuffer = (char *) malloc(_BUFFER_SIZE * sizeof(char));
+    char *tmpInputBuffer = (char *) malloc(_BUFFER_SIZE * sizeof(char));
     strcpy(tmpInputBuffer, "\0");
     char *tmpRecordBeginBuffer;
-    tmpRecordBeginBuffer = (char *) malloc(_DEFAULT_BUFFER_SIZE * sizeof(char));
+    tmpRecordBeginBuffer = (char *) malloc(_BUFFER_SIZE * sizeof(char));
     strcpy(tmpRecordBeginBuffer, "\0");
 
     // Parser
-    int size = _DEFAULT_BUFFER_SIZE;
-    SortData *data = malloc(size * sizeof(SortData));
+    int size = _BUFFER_SIZE;
+    RecordList *data = malloc(size * sizeof(RecordList));
     int count = 0, memUsed = 0;
-    while (fgets(inputBuffer, _DEFAULT_BUFFER_SIZE, fin) != NULL) {
+    while (fgets(inputBuffer, _BUFFER_SIZE, fin) != NULL) {
         if (strlen(tmpInputBuffer) + strlen(inputBuffer) >= maxInputBufferSize) {
-            maxInputBufferSize = strlen(tmpInputBuffer) + strlen(inputBuffer) + _DEFAULT_BUFFER_SIZE;
+            maxInputBufferSize = strlen(tmpInputBuffer) + strlen(inputBuffer) + _BUFFER_SIZE;
             tmpInputBuffer = (char *) realloc(tmpInputBuffer, maxInputBufferSize);
         }
         strcat(tmpInputBuffer, inputBuffer);
@@ -67,12 +67,10 @@ int main(int argc, char *argv[])
         if (tmpInputBuffer[strlen(tmpInputBuffer)-1] == '\n') {
             if (config->beginTag == NULL) {
                 if (count >= size) {
-                    size += _DEFAULT_BUFFER_SIZE;
-                    data = (SortData *) realloc(data, size * sizeof(SortData));
+                    size += _BUFFER_SIZE;
+                    data = (RecordList *) realloc(data, size * sizeof(RecordList));
                 }
-
-                data[count].record = (char *) malloc(strlen(tmpInputBuffer) + 1);
-                strcpy(data[count].record, tmpInputBuffer);
+                data[count].record = strdup(tmpInputBuffer);
                 memUsed += strlen(data[count].record);
                 ++count;
                 
@@ -84,8 +82,8 @@ int main(int argc, char *argv[])
                     }
                     free(data);
 
-                    size = _DEFAULT_BUFFER_SIZE;
-                    data = (SortData *) malloc(size * sizeof(SortData));
+                    size = _BUFFER_SIZE;
+                    data = (RecordList *) malloc(size * sizeof(RecordList));
                     count = memUsed = 0;
                 }
             } else {
@@ -94,17 +92,16 @@ int main(int argc, char *argv[])
                 while ((rbPtr = strstr(ptr, config->beginTag)) != NULL) {
                     if (strcmp(tmpRecordBeginBuffer, "\0") == 0) {
                         if (maxRecordBufferSize <= strlen(tmpRecordBeginBuffer) + strlen(rbPtr)) {
-                            maxRecordBufferSize = strlen(tmpRecordBeginBuffer) + strlen(rbPtr) + _DEFAULT_BUFFER_SIZE;
+                            maxRecordBufferSize = strlen(tmpRecordBeginBuffer) + strlen(rbPtr) + _BUFFER_SIZE;
                             tmpRecordBeginBuffer = (char *) realloc(tmpRecordBeginBuffer, maxRecordBufferSize);
                         }
                         strcpy(tmpRecordBeginBuffer, rbPtr);
                     } else {
                         if (count >= size) {
-                            size += _DEFAULT_BUFFER_SIZE;
-                            data = (SortData *) realloc(data, size * sizeof(SortData));
+                            size += _BUFFER_SIZE;
+                            data = (RecordList *) realloc(data, size * sizeof(RecordList));
                         }
-                        data[count].record = (char *) malloc(strlen(tmpRecordBeginBuffer) + 1);
-                        strcpy(data[count].record, tmpRecordBeginBuffer);
+                        data[count].record = strdup(tmpRecordBeginBuffer);
                         memUsed += strlen(data[count].record);
                         ++count;
 
@@ -116,13 +113,13 @@ int main(int argc, char *argv[])
                             }
                             free(data);
 
-                            size = _DEFAULT_BUFFER_SIZE;
-                            data = (SortData *) malloc(size * sizeof(SortData));
+                            size = _BUFFER_SIZE;
+                            data = (RecordList *) malloc(size * sizeof(RecordList));
                             count = memUsed = 0;
                         }
 
                         free(tmpRecordBeginBuffer);
-                        maxRecordBufferSize = _DEFAULT_BUFFER_SIZE + (int) strlen(rbPtr);
+                        maxRecordBufferSize = _BUFFER_SIZE + (int) strlen(rbPtr);
                         tmpRecordBeginBuffer = (char *) malloc(maxRecordBufferSize * sizeof(char));
                         memset(tmpRecordBeginBuffer, '\0', maxRecordBufferSize);
                         strcpy(tmpRecordBeginBuffer, rbPtr);
@@ -133,7 +130,7 @@ int main(int argc, char *argv[])
 
                 if (!findRecord && strcmp(tmpRecordBeginBuffer, "\0") != 0) {
                     if (maxRecordBufferSize <= strlen(tmpRecordBeginBuffer) + strlen(tmpInputBuffer)) {
-                        maxRecordBufferSize = strlen(tmpRecordBeginBuffer) + strlen(tmpInputBuffer) + _DEFAULT_BUFFER_SIZE;
+                        maxRecordBufferSize = strlen(tmpRecordBeginBuffer) + strlen(tmpInputBuffer) + _BUFFER_SIZE;
                         tmpRecordBeginBuffer = (char *) realloc(tmpRecordBeginBuffer, maxRecordBufferSize);
                     }
                     strcat(tmpRecordBeginBuffer, tmpInputBuffer);
@@ -141,7 +138,7 @@ int main(int argc, char *argv[])
             }
 
             free(tmpInputBuffer);
-            maxInputBufferSize = _DEFAULT_BUFFER_SIZE;
+            maxInputBufferSize = _BUFFER_SIZE;
             tmpInputBuffer = (char *) malloc(maxInputBufferSize * sizeof(char));
             memset(tmpInputBuffer, '\0', maxInputBufferSize);
         }
@@ -149,8 +146,7 @@ int main(int argc, char *argv[])
 
     // Get last record in -rb case
     if (config->beginTag != NULL && strcmp(tmpRecordBeginBuffer, "\0") != 0) {
-        data[count].record = (char *) malloc(strlen(tmpRecordBeginBuffer) + 1);
-        strcpy(data[count].record, tmpRecordBeginBuffer);
+        data[count].record = strdup(tmpRecordBeginBuffer);
         ++count;
     }
 
@@ -170,9 +166,9 @@ int main(int argc, char *argv[])
     // Merge
     if (_fileNum == 0) {
         fprintf(stderr, "Error: record not found\nPlease check -rb option\n");
-        exit(0);
+        exit(2);
     } else {
-        mergeKFile(_fileNum, config);
+        mergeKFile(_fileNum, config->chunk, config->thread, config->output, config->isUniquify, config->sort);
     }
 
     if (config->isCutByDelim) {
@@ -183,8 +179,8 @@ int main(int argc, char *argv[])
         free(config->beginTag);
     }
 
-    if (config->keyTag != NULL) {
-        free(config->keyTag);
+    if (config->sort->keyTag != NULL) {
+        free(config->sort->keyTag);
     }
 
     if (config->input != NULL) {
@@ -199,20 +195,20 @@ int main(int argc, char *argv[])
     return 0;
 }
 
-SortConfig *initSortConfig(int argc, char *argv[])
+RsortConfig *initRsortConfig(int argc, char *argv[])
 {
     if (argc == 1) {
         fprintf(stderr, "Error: missing arguments\n");
-        exit(0);
+        exit(2);
     }
 
-    SortConfig *config = malloc(sizeof(SortConfig));
-    config->beginTag = config->keyTag = config->output = config->input = NULL;
-    config->reverse = config->isCutByDelim = config->numeric = false;
-    config->keyPos = 1;
+    RsortConfig *config = malloc(sizeof(RsortConfig));
+    config->beginTag = config->output = config->input = NULL;
+    config->isCutByDelim = config->isUniquify = false;
     config->chunk = 4;
     config->maxFileSize = 500000000; // Default approx. 500MB
     config->thread = 4;
+    config->sort = initSortConfig();
 
     for (int i = 0; i < argc; i++) {
         bool flag = false;
@@ -225,17 +221,17 @@ SortConfig *initSortConfig(int argc, char *argv[])
             config->isCutByDelim = true;
             flag = true;
         } else if (strstr(argv[i], "-k") != NULL) {
-            config->keyTag = strdup(argv[i+1]);
+            config->sort->keyTag = strdup(argv[i+1]);
             if (strlen(argv[i]) == 3) {
-                config->keyPos = (argv[i][2] == 'r') ? -1 : atoi(argv[i] + 2);
+                config->sort->keyPos = (argv[i][2] == 'r') ? -1 : atoi(argv[i] + 2);
             }
             i += 1;
             flag = true;
         } else if (strcmp(argv[i], "-n") == 0) {
-            config->numeric = true;
+            config->sort->numeric = true;
             flag = true;
         } else if (strcmp(argv[i], "-r") == 0) {
-            config->reverse = true;
+            config->sort->reverse = true;
             flag = true;
         } else if (strcmp(argv[i], "-chunk") == 0) {
             config->chunk = atoi(argv[i+1]);
@@ -255,6 +251,9 @@ SortConfig *initSortConfig(int argc, char *argv[])
             config->output = strdup(argv[i+1]);
             i += 1;
             flag = true;
+        } else if (strcmp(argv[i], "-u") == 0) {
+            config->isUniquify = true;
+            flag = true;
         }
 
         if (!flag && i == argc - 1) {
@@ -264,27 +263,23 @@ SortConfig *initSortConfig(int argc, char *argv[])
 
     if (config->input == NULL) {
         fprintf(stderr, "Error: missing input file\n");
-        exit(0);
+        exit(2);
     }
 
     if (config->thread < 1) {
-        config->thread = 1;
+        fprintf(stderr, "Error: thread can not smaller than 1\n");
+        exit(2);
     }
 
     if (config->chunk < 2) {
-        config->chunk = 2;
+        fprintf(stderr, "Error: chunk can not smaller than 2\n");
+        exit(2);
     }
 
     return config;
 }
 
-/**
- * splitKFile - main function for splitting file in specifice file size
- * @data: pointer to unsorted data
- * @size: total idx of unsorted data
- * @config: sort config
- */
-void splitKFile(SortData **data, int size, SortConfig *config)
+void splitKFile(RecordList **data, int size, RsortConfig *config)
 {
     ++_fileNum;
 
@@ -292,7 +287,7 @@ void splitKFile(SortData **data, int size, SortConfig *config)
     for (int i = 0; i < size; i++) {
         idx[i] = i;
     }
-    mergeSort(data, &idx, size, config);
+    mergeSort(data, &idx, size, config->thread, config->sort);
 
     char splitFile[31], offsetFile[31];
     sprintf(splitFile, "%s_%d.rec", _SPLIT_FILE, _fileNum);
@@ -326,6 +321,7 @@ void usage()
   -s                limit file size (byte)\n\
   -parallel         number of threads needed\n\
   -o                output in specific file\n\
+  -u                remove duplicate records\n\
   --help            show rsort information\n\n");
 
   exit(0);
