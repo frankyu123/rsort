@@ -9,7 +9,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <unistd.h>
 #include <winner_tree.h>
 
 #ifdef __linux__
@@ -20,8 +19,8 @@
 #include <pthread_barrier.h>
 #endif
 
-#define _WINNER_TREE_SPLIT_FILE "split_text"
-#define _WINNER_TREE_OFFSET_FILE "offset"
+#define _WINNER_TREE_SPLIT_FILE "_split"
+#define _WINNER_TREE_OFFSET_FILE "_offset"
 
 /**
  * @threadIdx: idx of current thread
@@ -215,8 +214,8 @@ static void merge(int baseFileIdx, int lastFileIdx, FILE *fout, FILE *fnmap)
     char splitFile[31], offsetFile[31], newFile[31], newMap[31];
     for (int i = 0; i < _chunk; i++) {
         if (baseFileIdx + i <= lastFileIdx) {
-            sprintf(splitFile, "%s_%d.rec", _WINNER_TREE_SPLIT_FILE, baseFileIdx + i);
-            sprintf(offsetFile, "%s_%d.rec", _WINNER_TREE_OFFSET_FILE, baseFileIdx + i);
+            sprintf(splitFile, "%s_%d", _WINNER_TREE_SPLIT_FILE, baseFileIdx + i);
+            sprintf(offsetFile, "%s_%d", _WINNER_TREE_OFFSET_FILE, baseFileIdx + i);
             fin[i] = fopen(splitFile, "r");
             fmap[i] = fopen(offsetFile, "r");
         } else {
@@ -264,8 +263,8 @@ static void merge(int baseFileIdx, int lastFileIdx, FILE *fout, FILE *fnmap)
     }
 
     for (int i = 0; i < _chunk && baseFileIdx + i <= lastFileIdx; i++) {
-        sprintf(splitFile, "%s_%d.rec", _WINNER_TREE_SPLIT_FILE, baseFileIdx + i);
-        sprintf(offsetFile, "%s_%d.rec", _WINNER_TREE_OFFSET_FILE, baseFileIdx + i);
+        sprintf(splitFile, "%s_%d", _WINNER_TREE_SPLIT_FILE, baseFileIdx + i);
+        sprintf(offsetFile, "%s_%d", _WINNER_TREE_OFFSET_FILE, baseFileIdx + i);
         fclose(fin[i]);
         fclose(fmap[i]);
         remove(splitFile);
@@ -277,8 +276,8 @@ static void *job(void *argv)
 {
     ThreadArgs *args = (ThreadArgs *) argv;
     char newFile[31], newMap[31];
-    sprintf(newFile, "%s_%d.rec", _WINNER_TREE_SPLIT_FILE, args->newFileIdx);
-    sprintf(newMap, "%s_%d.rec", _WINNER_TREE_OFFSET_FILE, args->newFileIdx);
+    sprintf(newFile, "%s_%d", _WINNER_TREE_SPLIT_FILE, args->newFileIdx);
+    sprintf(newMap, "%s_%d", _WINNER_TREE_OFFSET_FILE, args->newFileIdx);
     FILE *fout = fopen(newFile, "w");
     FILE *fnmap = fopen(newMap, "w");
     int baseFileIdx = args->lastFileIdx - (args->lastFileIdx - _chunk * (args->threadIdx - 1)) + 1;

@@ -7,16 +7,16 @@
  * 
  * External mergesort
  * 1) parse texts by giving OPTION
- * 2) split files in N size (-s OPTION) and sort (internal mergesort)
- * 3) merge M files with K chunks (winner tree)
+ * 2) split files in N size (-s OPTION) and sort ( internal mergesort )
+ * 3) merge M files with K chunks ( winner tree )
  */
 
 #include <rsort.h>
 
 #define _BUFFER_SIZE 1024
-#define _SPLIT_FILE "split_text"
-#define _OFFSET_FILE "offset"
-#define _TERM_FILE "term.rec"
+#define _SPLIT_FILE "_split"
+#define _OFFSET_FILE "_offset"
+#define _TERM_FILE "_term_list"
 
 int _fileNum = 0;
 
@@ -25,10 +25,14 @@ int main(int argc, char *argv[])
     RsortConfig *config = initRsortConfig(argc, argv);
 
     FILE *fin;
-    fin = fopen(config->input, "r");
-    if (fin == NULL) {
-        fprintf(stderr, "Error: file not found\n");
-        exit(2);
+    if (config->input != NULL) {
+        fin = fopen(config->input, "r");
+        if (fin == NULL) {
+            fprintf(stderr, "Error: file not found\n");
+            exit(2);
+        }
+    } else {
+        fin = stdin;
     }
 
     if (config->isCutByDelim) {
@@ -205,7 +209,7 @@ RsortConfig *initRsortConfig(int argc, char *argv[])
     config->beginTag = config->output = config->input = NULL;
     config->isCutByDelim = config->isUniquify = false;
     config->chunk = 4;
-    config->maxFileSize = 500000000; // Default approx. 500MB
+    config->maxFileSize = 500000000;
     config->thread = 4;
     config->sort = initSortConfig();
 
@@ -260,11 +264,6 @@ RsortConfig *initRsortConfig(int argc, char *argv[])
         }
     }
 
-    if (config->input == NULL) {
-        fprintf(stderr, "Error: missing input file\n");
-        exit(2);
-    }
-
     if (config->thread < 1) {
         fprintf(stderr, "Error: thread can not smaller than 1\n");
         exit(2);
@@ -289,8 +288,8 @@ void splitKFile(RecordList **data, int size, RsortConfig *config)
     mergeSort(data, &idx, size, config->thread, config->sort);
 
     char splitFile[31], offsetFile[31];
-    sprintf(splitFile, "%s_%d.rec", _SPLIT_FILE, _fileNum);
-    sprintf(offsetFile, "%s_%d.rec", _OFFSET_FILE, _fileNum);
+    sprintf(splitFile, "%s_%d", _SPLIT_FILE, _fileNum);
+    sprintf(offsetFile, "%s_%d", _OFFSET_FILE, _fileNum);
 
     FILE *fout = fopen(splitFile, "w");
     FILE *fmap = fopen(offsetFile, "w");

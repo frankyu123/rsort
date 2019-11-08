@@ -3,8 +3,8 @@ A tool for sorting large texts based on external mergesort.
 
 ## External Mergesort
 * parse texts by giving OPTION
-* split files in N size (-s OPTION) and sort (internal mergesort)
-* merge M files with K chunks (winner tree)
+* split files in N size (-s OPTION) and sort ( internal mergesort )
+* merge M files with K chunks ( winner tree )
 
 ## Usage
 **Install rsort**

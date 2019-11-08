@@ -9,7 +9,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <unistd.h>
 #include <mergesort.h>
 
 #ifdef __linux__
@@ -188,7 +187,7 @@ static void merge(int low, int mid, int high)
     free(tmp);
 }
 
-int *mergeSort(RecordList **data, int **originIdx, int size, int thread, SortConfig *userConfig)
+void mergeSort(RecordList **data, int **originIdx, int size, int thread, SortConfig *userConfig)
 {
     config = userConfig;
     result = *data;
@@ -231,5 +230,8 @@ int *mergeSort(RecordList **data, int **originIdx, int size, int thread, SortCon
 
     result = NULL;
     free(result);
-    return idx;
+    idx = NULL;
+    free(idx);
+    config = NULL;
+    free(config);
 }

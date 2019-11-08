@@ -1,6 +1,7 @@
 rsort
 seg
-split_text_*
-offset_*
-term.rec
+_split*
+_offset*
+_term_list
 .DS_Store
+*.dSYM

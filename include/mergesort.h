@@ -15,6 +15,6 @@ typedef struct SortConfig {
 } SortConfig;
 
 extern SortConfig *initSortConfig();
-extern int *mergeSort(RecordList **, int **, int, int, SortConfig *);
+extern void mergeSort(RecordList **, int **, int, int, SortConfig *);
 
 #endif
